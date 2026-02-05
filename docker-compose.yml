@@ -1,0 +1,15 @@
+services:
+  apisix-dashboard:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - APISIX_ADMIN_KEY=edd1234567890123
+      - APISIX_ADMIN_URL=http://apisix:9180/apisix/admin/
+    volumes:
+      - ./data:/app/data
+    restart: always
+
+# Note: This assumes APISIX is running elsewhere or handled in a different network.
+# You might want to add APISIX services here if you want a full stack.

@@ -1,0 +1,41 @@
+@import "tailwindcss";
+@plugin "daisyui";
+
+@theme {
+  /* Let DaisyUI handle the colors, we only define core brand tokens if needed */
+  --color-primary-soft: var(--color-primary) / 0.1;
+  --color-secondary-soft: var(--color-secondary) / 0.1;
+}
+
+@layer base {
+  body {
+    @apply antialiased min-h-screen bg-base-200 text-base-content transition-colors duration-200;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+}
+
+@layer utilities {
+  .glass-panel {
+    @apply bg-base-100/60 backdrop-blur-md border border-base-300/50 shadow-sm;
+  }
+
+  .input-minimal {
+    @apply w-full px-4 py-2 bg-base-100 border border-base-300 rounded-xl outline-none focus:ring-1 focus:ring-primary/20 transition-all font-medium text-sm text-base-content placeholder:opacity-20;
+  }
+
+  .label-minimal {
+    @apply text-[9px] font-black uppercase tracking-[0.2em] text-base-content/40 mb-1.5 block;
+  }
+
+  .section-card {
+    @apply bg-base-100 p-6 rounded-2xl border border-base-300 space-y-4 shadow-sm;
+  }
+
+  .section-title {
+    @apply text-[11px] font-black uppercase tracking-[0.15em] text-base-content/80 border-b border-base-300 pb-3 flex items-center justify-between;
+  }
+}
+
+:root {
+  --glass-blur: 16px;
+}
