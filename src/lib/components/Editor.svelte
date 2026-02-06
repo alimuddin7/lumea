@@ -1,6 +1,5 @@
 <script lang="ts">
     import { onMount, onDestroy } from "svelte";
-    import * as monaco from "monaco-editor";
     import {
         Code2,
         Braces,
@@ -14,12 +13,22 @@
         value = $bindable(),
         language = $bindable("json"),
         readonly = false,
+        onchange = undefined,
+    }: {
+        value: string;
+        language?: string;
+        readonly?: boolean;
+        onchange?: () => void;
     } = $props();
     let container: HTMLElement;
-    let editor: monaco.editor.IStandaloneCodeEditor;
-    let currentModel: monaco.editor.ITextModel;
+    let editor: any;
+    let currentModel: any;
+    let monaco: any;
 
-    onMount(() => {
+    onMount(async () => {
+        // Dynamically import monaco only on client side
+        monaco = await import("monaco-editor");
+
         // Disable Monaco web workers to prevent 404 errors
         (window as any).MonacoEnvironment = {
             getWorker: () => {
@@ -53,6 +62,7 @@
             const val = editor.getValue();
             if (val !== value) {
                 value = val;
+                if (onchange) onchange();
             }
         });
     });

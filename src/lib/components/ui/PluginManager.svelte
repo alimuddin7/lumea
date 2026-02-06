@@ -1,6 +1,7 @@
 <script lang="ts">
     import { Code2, LayoutPanelLeft } from "lucide-svelte";
     import PluginVisualBuilder from "./PluginVisualBuilder.svelte";
+    import PluginAIAssistant from "./PluginAIAssistant.svelte";
     import Editor from "../Editor.svelte";
 
     let {
@@ -71,4 +72,6 @@
             </div>
         </div>
     {/if}
+
+    <PluginAIAssistant bind:pluginsJson />
 </div>

@@ -159,11 +159,6 @@
 							alt="Lumea"
 							class="h-6 w-auto object-contain"
 						/>
-						<span
-							class="hidden md:block text-[9px] font-bold uppercase tracking-widest opacity-30 italic mt-1"
-						>
-							APISIX Dashboard
-						</span>
 					</div>
 
 					<div
@@ -291,14 +286,6 @@
 									: 'h-6'} w-auto object-contain transition-all duration-200"
 							/>
 						</div>
-						<!-- Tagline -->
-						{#if isExpanded}
-							<span
-								class="text-[9px] font-bold uppercase tracking-[0.15em] opacity-40"
-							>
-								APISIX Dashboard
-							</span>
-						{/if}
 					</div>
 				</div>
 
