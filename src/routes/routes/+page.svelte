@@ -1,7 +1,14 @@
 <script lang="ts">
     import { onMount } from "svelte";
     import { apiFetch } from "$lib/api/client";
-    import { Plus, Edit2, Trash2, MoreVertical } from "lucide-svelte";
+    import {
+        Plus,
+        Edit2,
+        Trash2,
+        MoreVertical,
+        Database,
+        Server,
+    } from "lucide-svelte";
 
     import PageHeader from "$lib/components/ui/PageHeader.svelte";
     import StatusBadge from "$lib/components/ui/StatusBadge.svelte";
@@ -74,6 +81,7 @@
         columns={[
             "Route Identity",
             "Matching Rules",
+            "Upstream / Target",
             "Connectivity",
             "Operations",
         ]}
@@ -146,6 +154,68 @@
                             {/each}
                         </div>
                     </div>
+                </div>
+            </td>
+            <td class="py-4 px-6">
+                <div class="flex flex-col gap-1">
+                    {#if route.value.upstream_id}
+                        <div class="flex items-center gap-2">
+                            <Database
+                                class="w-3.5 h-3.5 text-primary opacity-60"
+                            />
+                            <span
+                                class="text-[10px] font-bold text-base-content/70"
+                            >
+                                {route.value.upstream_id}
+                            </span>
+                        </div>
+                        <div
+                            class="text-[8px] font-black uppercase tracking-widest opacity-20 ml-5"
+                        >
+                            Referenced Upstream
+                        </div>
+                    {:else if route.value.service_id}
+                        <div class="flex items-center gap-2">
+                            <Server
+                                class="w-3.5 h-3.5 text-secondary opacity-60"
+                            />
+                            <span
+                                class="text-[10px] font-bold text-base-content/70"
+                            >
+                                {route.value.service_id}
+                            </span>
+                        </div>
+                        <div
+                            class="text-[8px] font-black uppercase tracking-widest opacity-20 ml-5"
+                        >
+                            Bound to Service
+                        </div>
+                    {:else if route.value.upstream}
+                        <div class="flex items-center gap-2">
+                            <Database
+                                class="w-3.5 h-3.5 text-info opacity-60"
+                            />
+                            <span
+                                class="text-[10px] font-bold text-base-content/70 italic"
+                            >
+                                Inline Configuration
+                            </span>
+                        </div>
+                        <div
+                            class="text-[8px] font-black uppercase tracking-widest opacity-20 ml-5"
+                        >
+                            {route.value.upstream.type || "Roundrobin"}
+                        </div>
+                    {:else}
+                        <div class="flex items-center gap-2 opacity-20">
+                            <Database class="w-3.5 h-3.5" />
+                            <span
+                                class="text-[10px] font-black uppercase tracking-widest"
+                            >
+                                None
+                            </span>
+                        </div>
+                    {/if}
                 </div>
             </td>
             <td class="py-4 px-6">

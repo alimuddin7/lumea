@@ -39,6 +39,11 @@
 			label: "Consumer Groups",
 		},
 		{ href: "/plugins", icon: LayoutGrid, label: "Plugins" },
+		{
+			href: "/plugins/custom",
+			icon: Layout,
+			label: "Custom Plugins",
+		},
 		{ href: "/ssl", icon: ShieldCheck, label: "Certificates" },
 		{ href: "/import-export", icon: Download, label: "Import/Export" },
 		{ href: "/settings", icon: Settings, label: "Settings" },

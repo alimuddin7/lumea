@@ -8,6 +8,8 @@
         Info,
         LayoutTemplate,
         X,
+        Database,
+        Server,
     } from "lucide-svelte";
     import Editor from "$lib/components/Editor.svelte";
     import { goto } from "$app/navigation";
@@ -43,7 +45,9 @@
     let editorMode = $state<"visual" | "code">("visual");
 
     let servicesList = $state<any[]>([]);
+    let upstreamsList = $state<any[]>([]);
     let loadingServices = $state(true);
+    let loadingUpstreams = $state(true);
 
     $effect(() => {
         if (id) {
@@ -61,6 +65,16 @@
             console.warn("Failed to fetch services for dropdown");
         } finally {
             loadingServices = false;
+        }
+
+        // Fetch upstreams for the dropdown
+        try {
+            const data = await apiFetch("upstreams");
+            upstreamsList = data.list || [];
+        } catch (err) {
+            console.warn("Failed to fetch upstreams for dropdown");
+        } finally {
+            loadingUpstreams = false;
         }
 
         if (id !== "new") {
@@ -120,9 +134,12 @@
             const method = id === "new" ? "POST" : "PUT";
             const path = id === "new" ? "routes" : `routes/${id}`;
 
+            // Strip out read-only fields that APISIX manages internally
+            const { create_time, update_time, ...saveData } = route;
+
             await apiFetch(path, {
                 method,
-                body: route,
+                body: saveData,
             });
 
             goto("/routes");
@@ -293,7 +310,12 @@
             <!-- Sidebar -->
             <div class="space-y-6">
                 <section class="section-card">
-                    <h2 class="section-title">Backend Abstraction</h2>
+                    <h2 class="section-title">
+                        <div class="flex items-center gap-2">
+                            <Server class="w-4 h-4 text-primary opacity-50" />
+                            Backend Target
+                        </div>
+                    </h2>
                     <div class="space-y-4">
                         <div class="space-y-1">
                             <label for="service-id" class="label-minimal"
@@ -304,47 +326,76 @@
                                 bind:value={route.service_id}
                                 class="input-minimal appearance-none bg-base-100"
                             >
-                                <option value="">None (Direct Backend)</option>
+                                <option value="">None (Specify Upstream)</option
+                                >
                                 {#each servicesList as svc}
                                     <option value={svc.value.id}>
                                         {svc.value.name || svc.value.id}
                                     </option>
                                 {/each}
                             </select>
-                            <p
-                                class="text-[8px] font-bold opacity-20 uppercase tracking-widest pt-1 italic"
-                            >
-                                {route.service_id
-                                    ? "Inheriting from Service"
-                                    : "Direct Upstream required below"}
-                            </p>
                         </div>
 
-                        <div class="divider opacity-5 my-0"></div>
+                        <div class="flex items-center gap-2 py-1">
+                            <div
+                                class="h-[1px] grow bg-base-300 opacity-20"
+                            ></div>
+                            <span
+                                class="text-[8px] font-black uppercase tracking-widest opacity-20"
+                                >OR</span
+                            >
+                            <div
+                                class="h-[1px] grow bg-base-300 opacity-20"
+                            ></div>
+                        </div>
 
                         <div class="space-y-1">
                             <label for="upstream-id" class="label-minimal"
-                                >Manual Upstream ID</label
+                                >Associated Upstream</label
                             >
-                            <input
-                                id="upstream-id"
-                                type="text"
-                                bind:value={route.upstream_id}
-                                disabled={!!route.service_id}
-                                placeholder={route.service_id
-                                    ? "Using Service Upstream"
-                                    : "e.g. 123456"}
-                                class="input-minimal {route.service_id
-                                    ? 'bg-base-200/50 opacity-50'
-                                    : 'bg-base-200/50'}"
-                            />
-                            <p
-                                class="text-[8px] font-bold opacity-20 uppercase tracking-widest pt-1 italic"
-                            >
-                                {route.service_id
-                                    ? "Managed by Service"
-                                    : "Manual node reference"}
-                            </p>
+                            <div class="relative group/select">
+                                <select
+                                    id="upstream-id"
+                                    bind:value={route.upstream_id}
+                                    disabled={!!route.service_id}
+                                    class="input-minimal appearance-none bg-base-100 {loadingUpstreams
+                                        ? 'opacity-50 animate-pulse'
+                                        : ''} {route.service_id
+                                        ? 'opacity-50 grayscale'
+                                        : ''}"
+                                >
+                                    {#if loadingUpstreams}
+                                        <option>Loading destinations...</option>
+                                    {:else if upstreamsList.length === 0}
+                                        <option value=""
+                                            >No Upstreams Discovered</option
+                                        >
+                                    {:else}
+                                        <option value=""
+                                            >None (Service or Inline
+                                            configuration required)</option
+                                        >
+                                        {#each upstreamsList as up}
+                                            <option value={up.value.id}>
+                                                {up.value.name || up.value.id}
+                                            </option>
+                                        {/each}
+                                    {/if}
+                                </select>
+                                <div
+                                    class="absolute right-3 top-1/2 -translate-y-1/2 opacity-20 pointer-events-none"
+                                >
+                                    <Database class="w-3.5 h-3.5" />
+                                </div>
+                            </div>
+                            {#if !loadingUpstreams && upstreamsList.length === 0 && !route.service_id}
+                                <p
+                                    class="text-[8px] font-bold text-error uppercase tracking-widest pt-1 italic"
+                                >
+                                    Connection error or no upstreams clusters
+                                    found.
+                                </p>
+                            {/if}
                         </div>
                     </div>
                 </section>
