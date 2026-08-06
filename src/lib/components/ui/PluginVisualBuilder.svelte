@@ -121,11 +121,12 @@ end`,
             onclick={() => (showMarketplace = false)}
         >
             <div
-                class="bg-white w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden border border-slate-200 animate-in zoom-in-95 duration-300"
+                style="background-color: hsl(var(--card)); color: hsl(var(--card-foreground)); opacity: 1;"
+                class="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 opacity-100 w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden border border-slate-200 dark:border-slate-800 animate-in zoom-in-95 duration-300"
                 onclick={(e) => e.stopPropagation()}
             >
                 <div
-                    class="px-8 py-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/50"
+                    class="px-8 py-6 border-b border-border flex items-center justify-between bg-slate-100 dark:bg-slate-800"
                 >
                     <div>
                         <h2

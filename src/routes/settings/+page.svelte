@@ -1,118 +1,145 @@
 <script lang="ts">
-    import { config } from "$lib/stores/config";
-    import { ShieldCheck, Info, Save } from "lucide-svelte";
+    import { config, connectionStatus } from "$lib/stores/config";
+    import { checkConnection } from "$lib/api/client";
+    import { ShieldCheck, Info, Save, AlertCircle, CheckCircle2, Loader2, Key, Globe } from "lucide-svelte";
     import PageHeader from "$lib/components/ui/PageHeader.svelte";
+    import Card from "$lib/components/ui/Card.svelte";
+    import Input from "$lib/components/ui/Input.svelte";
+    import Button from "$lib/components/ui/Button.svelte";
+    import Badge from "$lib/components/ui/Badge.svelte";
 
     let baseUrl = $state($config.baseUrl);
     let apiKey = $state($config.apiKey);
     let saving = $state(false);
+    let saveMessage = $state<{ success: boolean; text: string } | null>(null);
+
+    const isUnconfigured = $derived(!baseUrl.trim() || !apiKey.trim());
 
     async function saveSettings() {
         saving = true;
-        // Simulate a small delay for better UX feedback
-        await new Promise((resolve) => setTimeout(resolve, 500));
-        config.set({ baseUrl, apiKey });
+        saveMessage = null;
+        config.set({ baseUrl: baseUrl.trim(), apiKey: apiKey.trim() });
+
+        connectionStatus.set("checking");
+        const isConnected = await checkConnection();
+        connectionStatus.set(isConnected ? "connected" : "disconnected");
+
         saving = false;
+        if (isConnected) {
+            saveMessage = { success: true, text: "Konfigurasi APISIX berhasil disimpan dan terhubung!" };
+        } else {
+            saveMessage = { success: false, text: "Kredensial disimpan, namun gagal terhubung ke APISIX Admin API. Periksa URL & Key." };
+        }
     }
 </script>
 
-<div class="max-w-4xl mx-auto space-y-8 pb-10">
+<div class="max-w-4xl mx-auto space-y-6 pb-20">
     <PageHeader
-        title="Dashboard Settings"
-        description="Configure your APISIX Admin API connection and security credentials."
-        badge="Config"
-        badgeType="info"
+        title="APISIX Connection Settings"
+        description="Atur URL Admin API dan X-API-KEY APISIX Control Center Anda. Kredensial disimpan secara aman di browser LocalStorage."
+        badge="Security & Config"
     />
 
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div class="lg:col-span-2 space-y-6">
-            <section class="section-card">
-                <h2 class="section-title">
-                    <div class="flex items-center gap-2">
-                        <ShieldCheck class="w-4 h-4 text-primary opacity-50" />
-                        Admin API Configuration
-                    </div>
-                </h2>
+    {#if isUnconfigured}
+        <div class="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-400 flex items-start gap-3 text-xs">
+            <AlertCircle class="w-5 h-5 shrink-0 mt-0.5" />
+            <div>
+                <div class="font-bold text-sm mb-0.5 text-amber-300">APISIX Admin API Belum Dikonfigurasi</div>
+                <p class="leading-relaxed">
+                    Silakan isi <strong>Admin API Base URL</strong> dan <strong>X-API-KEY</strong> di bawah ini agar Lumea dapat mengelola rute, upstreams, dan plugin APISIX Gateway Anda.
+                </p>
+            </div>
+        </div>
+    {/if}
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div class="lg:col-span-2">
+            <Card class="p-6 space-y-6">
+                <div class="flex items-center gap-2 pb-3 border-b border-border">
+                    <ShieldCheck class="w-5 h-5 text-primary" />
+                    <h2 class="font-semibold text-sm text-foreground">
+                        Kredensial APISIX Admin API
+                    </h2>
+                </div>
 
                 <div class="space-y-4">
                     <div class="space-y-1.5">
-                        <label for="baseUrl" class="label-minimal"
-                            >Admin API Base URL</label
-                        >
-                        <input
+                        <label for="baseUrl" class="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                            <Globe class="w-3.5 h-3.5 text-primary" />
+                            <span>Admin API Base URL</span>
+                        </label>
+                        <Input
                             id="baseUrl"
                             type="text"
                             bind:value={baseUrl}
-                            placeholder="http://127.0.0.1:9180/apisix/admin"
-                            class="input-minimal"
+                            placeholder="e.g. http://127.0.0.1:9180/apisix/admin"
+                            class="h-9 text-xs font-mono"
                         />
-                        <div class="flex items-start gap-2 pt-1 opacity-40">
-                            <Info class="w-3 h-3 mt-0.5" />
-                            <p
-                                class="text-[9px] font-bold uppercase tracking-wider"
-                            >
-                                Typically includes the /apisix/admin suffix.
-                            </p>
+                        <div class="flex items-center gap-1.5 pt-1 text-[11px] text-muted-foreground">
+                            <Info class="w-3.5 h-3.5 shrink-0" />
+                            <span>Sertakan akhiran <code>/apisix/admin</code> (contoh: <code>http://10.0.0.1:9180/apisix/admin</code>)</span>
                         </div>
                     </div>
 
                     <div class="space-y-1.5">
-                        <label for="apiKey" class="label-minimal"
-                            >Admin API Key (X-API-KEY)</label
-                        >
-                        <input
+                        <label for="apiKey" class="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                            <Key class="w-3.5 h-3.5 text-primary" />
+                            <span>Admin API Key (X-API-KEY)</span>
+                        </label>
+                        <Input
                             id="apiKey"
                             type="password"
                             bind:value={apiKey}
-                            placeholder="Enter your security token"
-                            class="input-minimal"
+                            placeholder="Masukkan token keamanan APISIX X-API-KEY"
+                            class="h-9 text-xs font-mono"
                         />
                     </div>
                 </div>
 
-                <div class="pt-4 flex justify-end">
-                    <button
+                {#if saveMessage}
+                    <div class="p-3 rounded-lg border text-xs flex items-start gap-2 {saveMessage.success ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' : 'bg-destructive/10 border-destructive/30 text-destructive'}">
+                        {#if saveMessage.success}
+                            <CheckCircle2 class="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
+                        {:else}
+                            <AlertCircle class="w-4 h-4 text-destructive shrink-0 mt-0.5" />
+                        {/if}
+                        <span>{saveMessage.text}</span>
+                    </div>
+                {/if}
+
+                <div class="pt-2 flex justify-end">
+                    <Button
                         onclick={saveSettings}
-                        disabled={saving}
-                        class="flex items-center gap-2 px-8 py-2.5 bg-primary hover:bg-primary/90 disabled:opacity-20 text-primary-content font-black rounded-xl transition-all shadow-lg shadow-primary/10 text-[10px] uppercase tracking-[0.2em]"
+                        disabled={saving || !baseUrl.trim() || !apiKey.trim()}
+                        variant="default"
+                        size="sm"
+                        class="gap-2"
                     >
                         {#if saving}
-                            <div
-                                class="w-3 h-3 border-2 border-primary-content border-t-transparent rounded-full animate-spin"
-                            ></div>
-                            <span>Applying...</span>
+                            <Loader2 class="w-4 h-4 animate-spin" />
+                            <span>Menyimpan...</span>
                         {:else}
-                            <Save class="w-3.5 h-3.5" />
-                            <span>Save Configuration</span>
+                            <Save class="w-4 h-4" />
+                            <span>Simpan Konfigurasi</span>
                         {/if}
-                    </button>
+                    </Button>
                 </div>
-            </section>
+            </Card>
         </div>
 
         <div class="space-y-6">
-            <section
-                class="bg-base-100 p-6 rounded-2xl border border-base-300 space-y-4 shadow-sm border-l-4 border-l-info"
-            >
-                <h3
-                    class="text-[10px] font-black uppercase tracking-[0.2em] text-info"
-                >
-                    System Architecture
-                </h3>
-                <p class="text-[11px] font-bold leading-relaxed opacity-60">
-                    These settings are stored securely in your browser's local
-                    storage.
-                </p>
-                <div
-                    class="p-3 bg-base-200/50 rounded-xl border border-base-300/30"
-                >
-                    <p class="text-[10px] font-bold leading-relaxed opacity-50">
-                        The dashboard utilizes a server-side proxy to bridge
-                        communication with the APISIX Admin API, preventing CORS
-                        complications.
-                    </p>
+            <Card class="p-6 space-y-3 bg-muted/20">
+                <div class="flex items-center gap-2">
+                    <Badge variant="outline" class="text-[10px] uppercase font-semibold">Arsitektur Safe</Badge>
                 </div>
-            </section>
+                <h3 class="text-xs font-bold text-foreground">Penyimpanan Lokal (Browser Storage)</h3>
+                <p class="text-xs text-muted-foreground leading-relaxed">
+                    Seluruh kredensial API Key dan URL disimpan secara lokal di browser pengguna (`localStorage`). Tidak ada kredensial yang tersimpan keras di kode aplikasi.
+                </p>
+                <div class="p-3 bg-background rounded-lg border border-border text-[11px] text-muted-foreground leading-relaxed">
+                    Dashboard memanfaatkan server-side proxy untuk menjembatani komunikasi dengan APISIX Admin API tanpa mengalami isu CORS.
+                </div>
+            </Card>
         </div>
     </div>
 </div>

@@ -1,6 +1,8 @@
 <script lang="ts">
     import type { Snippet } from "svelte";
-    import { Search, ChevronLeft, ChevronRight } from "lucide-svelte";
+    import { Search, ChevronLeft, ChevronRight, Loader2 } from "lucide-svelte";
+    import Button from "./Button.svelte";
+    import Input from "./Input.svelte";
 
     interface Props {
         columns: string[];
@@ -46,39 +48,36 @@
         footerSnippet,
     }: Props = $props();
 
-    let totalPages = $derived(Math.ceil(totalItems / pageSize));
+    let totalPages = $derived(Math.ceil(totalItems / pageSize) || 1);
 </script>
 
 <div
-    class="w-full bg-base-100/50 rounded-2xl border border-base-300/50 overflow-hidden flex flex-col"
+    class="w-full bg-card rounded-xl border border-border/80 shadow-sm overflow-hidden flex flex-col"
 >
     {#if showSearch || headerActions}
         <div
-            class="px-6 py-4 border-b border-base-300/50 flex items-center justify-between gap-4"
+            class="px-5 py-3.5 border-b border-border/60 flex flex-wrap items-center justify-between gap-4 bg-muted/20"
         >
-            <div class="flex items-center gap-3 flex-1">
+            <div class="flex items-center gap-3 flex-1 min-w-[240px]">
                 {#if showSearch}
                     <div class="relative w-full max-w-xs">
                         <Search
-                            class="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 opacity-20"
+                            class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground"
                         />
-                        <input
+                        <Input
                             type="text"
                             bind:value={searchValue}
                             oninput={(e) => onSearch?.(e.currentTarget.value)}
                             placeholder={searchPlaceholder}
-                            class="input-minimal !pl-10"
+                            class="pl-9 h-8 text-xs bg-background/80"
                         />
                     </div>
                 {/if}
 
                 <div class="flex items-center gap-2">
-                    <span
-                        class="text-[9px] font-black uppercase tracking-widest opacity-20 whitespace-nowrap"
-                        >Show</span
-                    >
+                    <span class="text-[10px] font-semibold tracking-wider text-muted-foreground uppercase whitespace-nowrap">Show</span>
                     <select
-                        class="select select-bordered select-xs h-8 rounded-lg bg-base-200/50 border-base-300 text-[10px] font-bold outline-none"
+                        class="h-8 rounded-md bg-background border border-input px-2 text-xs font-medium focus:outline-none focus:ring-1 focus:ring-ring"
                         bind:value={pageSize}
                     >
                         <option value={10}>10</option>
@@ -97,45 +96,38 @@
         </div>
     {/if}
 
-    <div class="overflow-x-auto">
-        <table class="table table-md table-zebra-zebra">
+    <div class="overflow-x-auto w-full">
+        <table class="w-full text-left border-collapse text-xs">
             <thead>
-                <tr class="border-b border-base-300 select-none">
+                <tr class="border-b border-border bg-muted/40 text-muted-foreground select-none">
                     {#each columns as col}
-                        <th
-                            class="py-4 px-6 text-[10px] font-black uppercase tracking-[0.1em] opacity-40"
-                            >{col}</th
-                        >
+                        <th class="py-3 px-4 text-[11px] font-semibold uppercase tracking-wider">{col}</th>
                     {/each}
                 </tr>
             </thead>
-            <tbody>
+            <tbody class="divide-y divide-border/50">
                 {#if loading}
                     <tr>
-                        <td colspan={columns.length} class="py-20 text-center">
-                            <span
-                                class="loading loading-spinner loading-md opacity-20"
-                            ></span>
-                            <p
-                                class="mt-3 text-[10px] font-black uppercase tracking-widest opacity-20"
-                            >
-                                {loadingMessage}
-                            </p>
+                        <td colspan={columns.length} class="py-16 text-center">
+                            <div class="flex flex-col items-center justify-center gap-2">
+                                <Loader2 class="w-6 h-6 animate-spin text-primary opacity-80" />
+                                <p class="text-xs font-medium text-muted-foreground">
+                                    {loadingMessage}
+                                </p>
+                            </div>
                         </td>
                     </tr>
                 {:else if items.length === 0}
                     <tr>
-                        <td colspan={columns.length} class="py-20 text-center">
-                            <p class="text-sm font-medium opacity-30 italic">
+                        <td colspan={columns.length} class="py-16 text-center">
+                            <p class="text-xs font-medium text-muted-foreground italic">
                                 {emptyMessage}
                             </p>
                         </td>
                     </tr>
                 {:else}
                     {#each items as item}
-                        <tr
-                            class="hover:bg-base-200/50 transition-colors border-b border-base-300 last:border-0 group"
-                        >
+                        <tr class="hover:bg-muted/30 transition-colors border-b border-border/40 last:border-0">
                             {@render rowSnippet(item)}
                         </tr>
                     {/each}
@@ -146,15 +138,11 @@
 
     {#if totalItems > 0 || footerSnippet}
         <div
-            class="px-6 py-4 border-t border-base-300/50 flex items-center justify-between"
+            class="px-5 py-3 border-t border-border/60 flex items-center justify-between bg-muted/10 text-xs text-muted-foreground"
         >
             <div class="flex items-center gap-4">
-                <div
-                    class="text-[10px] font-black uppercase tracking-[0.15em] opacity-30"
-                >
-                    Total: <span class="text-base-content opacity-100"
-                        >{totalItems}</span
-                    > Records
+                <div class="font-medium">
+                    Total: <span class="text-foreground font-semibold">{totalItems}</span> Records
                 </div>
                 {#if footerSnippet}
                     {@render footerSnippet()}
@@ -163,44 +151,44 @@
 
             {#if totalPages > 1}
                 <div class="flex items-center gap-1">
-                    <button
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        class="h-7 w-7"
                         onclick={() => onPageChange?.(currentPage - 1)}
                         disabled={currentPage === 1}
-                        class="btn btn-ghost btn-square btn-xs disabled:opacity-10"
                     >
-                        <ChevronLeft class="w-3.5 h-3.5" />
-                    </button>
+                        <ChevronLeft class="w-4 h-4" />
+                    </Button>
 
-                    <div class="flex items-center gap-1.5 mx-2">
+                    <div class="flex items-center gap-1 mx-1">
                         {#each Array(totalPages) as _, i}
                             {#if i + 1 === currentPage}
-                                <div
-                                    class="w-7 h-7 flex items-center justify-center rounded-lg bg-primary/10 text-primary text-[10px] font-black border border-primary/20 shadow-[0_0_12px_rgba(var(--p),0.1)]"
-                                >
+                                <div class="w-7 h-7 flex items-center justify-center rounded-md bg-primary text-primary-foreground text-xs font-semibold shadow-xs">
                                     {i + 1}
                                 </div>
                             {:else if Math.abs(i + 1 - currentPage) < 2 || i === 0 || i === totalPages - 1}
                                 <button
                                     onclick={() => onPageChange?.(i + 1)}
-                                    class="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-base-200 text-[10px] font-black opacity-30 hover:opacity-100 transition-all font-mono"
+                                    class="w-7 h-7 flex items-center justify-center rounded-md hover:bg-muted text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
                                 >
                                     {i + 1}
                                 </button>
                             {:else if Math.abs(i + 1 - currentPage) === 2}
-                                <span class="text-[10px] opacity-10 font-black"
-                                    >•••</span
-                                >
+                                <span class="text-xs text-muted-foreground px-1">•••</span>
                             {/if}
                         {/each}
                     </div>
 
-                    <button
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        class="h-7 w-7"
                         onclick={() => onPageChange?.(currentPage + 1)}
                         disabled={currentPage === totalPages}
-                        class="btn btn-ghost btn-square btn-xs disabled:opacity-10"
                     >
-                        <ChevronRight class="w-3.5 h-3.5" />
-                    </button>
+                        <ChevronRight class="w-4 h-4" />
+                    </Button>
                 </div>
             {/if}
         </div>

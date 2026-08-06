@@ -1,19 +1,11 @@
 <script lang="ts">
-    import type { Component } from "svelte";
+    import Card from "./Card.svelte";
 
     interface Props {
         title: string;
         value: string | number;
         description?: string;
-        icon?: Component<any>;
-        type?:
-            | "primary"
-            | "secondary"
-            | "accent"
-            | "success"
-            | "warning"
-            | "error"
-            | "info";
+        icon?: any;
         trend?: string;
         trendType?: "success" | "error" | "warning";
     }
@@ -23,53 +15,46 @@
         value,
         description,
         icon: Icon,
-        type = "primary",
         trend,
         trendType = "success",
     }: Props = $props();
 </script>
 
-<div
-    class="stats bg-base-100 border border-base-300 rounded-2xl w-full shadow-sm"
->
-    <div class="stat p-6 overflow-hidden">
-        <div
-            class="stat-title text-[9px] font-black uppercase tracking-[0.2em] text-base-content/40 mb-2"
-        >
+<Card class="p-5">
+    <div class="flex items-center justify-between">
+        <span class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             {title}
-        </div>
-
-        <div class="flex items-center justify-between">
-            <div
-                class="stat-value text-2xl font-black tracking-tighter text-base-content italic"
-            >
-                {value}
-            </div>
-
-            {#if Icon}
-                <div class="opacity-10 text-primary">
-                    <Icon class="w-6 h-6" />
-                </div>
-            {/if}
-        </div>
-
-        {#if description || trend}
-            <div class="stat-desc font-bold mt-2.5 flex items-center gap-2">
-                {#if trend}
-                    <span
-                        class="text-{trendType} text-[9px] uppercase font-black tracking-widest leading-none bg-base-200 px-1.5 py-1 rounded"
-                    >
-                        {trend}
-                    </span>
-                {/if}
-                {#if description}
-                    <span
-                        class="text-[9px] font-black opacity-20 uppercase tracking-widest"
-                    >
-                        {description}
-                    </span>
-                {/if}
+        </span>
+        {#if Icon}
+            <div class="p-2 rounded-lg bg-primary/10 text-primary">
+                <Icon class="w-4 h-4" />
             </div>
         {/if}
     </div>
-</div>
+
+    <div class="mt-3 flex items-baseline justify-between">
+        <div class="text-2xl font-bold tracking-tight text-foreground">
+            {value}
+        </div>
+    </div>
+
+    {#if description || trend}
+        <div class="mt-2.5 flex items-center gap-2 text-xs">
+            {#if trend}
+                <span
+                    class="font-semibold px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wide
+                    {trendType === 'success' ? 'bg-emerald-500/15 text-emerald-400' : ''}
+                    {trendType === 'error' ? 'bg-red-500/15 text-red-400' : ''}
+                    {trendType === 'warning' ? 'bg-amber-500/15 text-amber-400' : ''}"
+                >
+                    {trend}
+                </span>
+            {/if}
+            {#if description}
+                <span class="text-muted-foreground text-xs">
+                    {description}
+                </span>
+            {/if}
+        </div>
+    {/if}
+</Card>

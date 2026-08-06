@@ -1,101 +1,84 @@
 <script lang="ts">
-    import { Sparkles, Send, Bot, User, Wand2, Lightbulb } from "lucide-svelte";
+    import { Sparkles, Send, Bot, User, Wand2, Lightbulb, Check, AlertCircle, Loader2 } from "lucide-svelte";
     import { slide, fade } from "svelte/transition";
+    import { aiStore, generateAPISIXAIRecommendation } from "$lib/stores/aiStore";
+    import Button from "./Button.svelte";
+    import Input from "./Input.svelte";
+    import Badge from "./Badge.svelte";
 
-    let { pluginsJson = $bindable() } = $props();
+    let { pluginsJson = $bindable("{}") } = $props();
 
     let isOpen = $state(false);
     let query = $state("");
     let isTyping = $state(false);
+    let lastSuggestedJson = $state<string | null>(null);
 
-    let messages = $state([
+    let messages = $state<{ role: "assistant" | "user"; content: string; jsonPreview?: string }[]>([
         {
             role: "assistant",
-            content:
-                "Hello! I am Lumea AI. I can help you configure your APISIX plugins. What are you trying to achieve today?",
+            content: "Halo! Saya Lumea AI Assistant. Saya siap membantu mengonfigurasi rute dan plugin APISIX secara otomatis berdasarkan prompt bahasa alami Anda.",
         },
     ]);
 
     const suggestions = [
-        "Enable CORS for all origins",
-        "Add key-auth with custom key",
-        "Setup rate limiting for 100 req/min",
-        "Add a proxy-rewrite for /api/v1",
+        "Tambahkan rate limiting 100 req/min",
+        "Aktifkan CORS untuk semua origin",
+        "Setup Key Authentication (key-auth)",
+        "Tambahkan IP Restriction untuk whitelist"
     ];
 
     async function handleSend() {
-        if (!query.trim()) return;
+        if (!query.trim() || isTyping) return;
 
         const userMsg = query;
         messages = [...messages, { role: "user", content: userMsg }];
         query = "";
         isTyping = true;
+        lastSuggestedJson = null;
 
-        // Simulate AI thinking
-        setTimeout(() => {
-            isTyping = false;
-            let response = "";
-            let newJson = "";
-
-            if (userMsg.toLowerCase().includes("cors")) {
-                response =
-                    "I've updated the configuration to enable CORS. It now allows all origins and common methods. You can see the changes in the Visual/JSON tabs.";
-                newJson = JSON.stringify(
-                    {
-                        ...JSON.parse(pluginsJson),
-                        cors: {
-                            allow_origins: "*",
-                            allow_methods: "GET,POST,PUT,DELETE,PATCH,OPTIONS",
-                            allow_headers: "*",
-                            allow_credential: true,
-                        },
-                    },
-                    null,
-                    2,
-                );
-            } else if (userMsg.toLowerCase().includes("rate limit")) {
-                response =
-                    "I've added the limit-count plugin. It's configured for 100 requests per minute with a 503 error if exceeded.";
-                newJson = JSON.stringify(
-                    {
-                        ...JSON.parse(pluginsJson),
-                        "limit-count": {
-                            count: 100,
-                            time_window: 60,
-                            rejected_code: 503,
-                            key: "remote_addr",
-                        },
-                    },
-                    null,
-                    2,
-                );
-            } else if (
-                userMsg.toLowerCase().includes("body") ||
-                userMsg.toLowerCase().includes("pindahkan") ||
-                userMsg.toLowerCase().includes("route")
-            ) {
-                response =
-                    "I can help with advanced routing. I've configured a serverless-pre-function to check for specific keywords in the request body and set a routing marker. You can further customize this in the 'Smart Recipes' section of the Visual tab.";
-                newJson = JSON.stringify(
-                    {
-                        ...JSON.parse(pluginsJson),
-                        "serverless-pre-function": {
-                            functions: [
-                                'return function(conf, ctx)\n    local core = require("apisix.core")\n    local body = core.request.get_body()\n    if body and string.find(body, "premium") then\n        core.request.set_header(ctx, "X-Route-Premium", "true")\n    end\nend',
-                            ],
-                        },
-                    },
-                    null,
-                    2,
-                );
-            } else {
-                response =
-                    "I'm sorry, I'm a specialized assistant for plugin configurations. I can help with CORS, Rate Limiting, Serverless Routing, and Authentication. Try asking for 'Route by body content'!";
+        try {
+            if (!$aiStore.apiKey) {
+                messages = [...messages, {
+                    role: "assistant",
+                    content: "⚠️ **API Key AI Belum Diatur**. Silakan buka menu **Setup AI Integration** di header / settings untuk memasukkan API Key dan memilih model AI (OpenAI, Gemini, Anthropic, atau DeepSeek)."
+                }];
+                isTyping = false;
+                return;
             }
 
-            if (newJson) pluginsJson = newJson;
-            messages = [...messages, { role: "assistant", content: response }];
-        }, 1500);
+            const currentObj = JSON.parse(pluginsJson || "{}");
+            const result = await generateAPISIXAIRecommendation(userMsg, [currentObj]);
+            
+            let jsonString = "";
+            if (result.suggestedPlugins) {
+                const merged = { ...currentObj, ...result.suggestedPlugins };
+                jsonString = JSON.stringify(merged, null, 2);
+                lastSuggestedJson = jsonString;
+            }
+
+            messages = [...messages, {
+                role: "assistant",
+                content: result.recommendation,
+                jsonPreview: jsonString || undefined
+            }];
+        } catch (err: any) {
+            messages = [...messages, {
+                role: "assistant",
+                content: `❌ Gagal memproses prompt AI: ${err.message || "Terjadi masalah koneksi"}`
+            }];
+        } finally {
+            isTyping = false;
+        }
+    }
+
+    function applyAIConfiguration(jsonStr: string) {
+        if (jsonStr) {
+            pluginsJson = jsonStr;
+            messages = [...messages, {
+                role: "assistant",
+                content: "✅ Konfigurasi hasil rekomendasi AI berhasil diterapkan ke APISIX Plugin Manager!"
+            }];
+        }
     }
 
     function applySuggestion(s: string) {
@@ -104,125 +87,119 @@
     }
 </script>
 
-<div class="fixed bottom-8 right-8 z-[100] flex flex-col items-end gap-4">
+<div class="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-3 font-sans">
     {#if isOpen}
         <div
-            class="w-[380px] h-[500px] bg-white rounded-[2rem] shadow-2xl border border-slate-200 flex flex-col overflow-hidden animate-in slide-in-from-bottom-4 duration-500"
+            class="w-[420px] h-[540px] bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 opacity-100 rounded-2xl shadow-2xl border border-border flex flex-col overflow-hidden animate-in slide-in-from-bottom-4 duration-300"
             transition:slide
         >
             <!-- Header -->
-            <div
-                class="p-6 bg-slate-900 text-white flex items-center justify-between"
-            >
-                <div class="flex items-center gap-3">
-                    <div class="p-2 bg-primary/20 rounded-xl">
-                        <Sparkles class="w-5 h-5 text-primary" />
+            <div class="p-4 bg-slate-100 dark:bg-slate-800 border-b border-border flex items-center justify-between">
+                <div class="flex items-center gap-2.5">
+                    <div class="p-2 bg-rose-600/10 text-rose-600 rounded-xl">
+                        <Sparkles class="w-5 h-5" />
                     </div>
                     <div>
-                        <h3 class="text-sm font-black tracking-tight">
-                            Lumea AI Assistant
-                        </h3>
-                        <p
-                            class="text-[8px] font-black uppercase tracking-widest text-primary"
-                        >
-                            Configuration Pilot
+                        <div class="flex items-center gap-2">
+                            <h3 class="text-sm font-bold tracking-tight text-foreground">
+                                Lumea AI Assistant
+                            </h3>
+                            <Badge variant="outline" class="text-[9px] py-0 font-semibold">
+                                {$aiStore.selectedModel || "AI Pilot"}
+                            </Badge>
+                        </div>
+                        <p class="text-[10px] text-muted-foreground">
+                            APISIX Route & Plugin Copilot
                         </p>
                     </div>
                 </div>
                 <button
+                    type="button"
                     onclick={() => (isOpen = false)}
-                    class="p-2 hover:bg-white/10 rounded-full transition-colors"
+                    class="p-1.5 hover:bg-accent text-muted-foreground hover:text-foreground rounded-lg transition-colors"
                 >
-                    <Wand2 class="w-4 h-4 rotate-45" />
+                    ✕
                 </button>
             </div>
 
-            <!-- Messages -->
-            <div class="flex-1 overflow-y-auto p-6 space-y-4 bg-slate-50/50">
+            <!-- Messages Stream -->
+            <div class="flex-1 overflow-y-auto p-4 space-y-4 bg-white dark:bg-slate-950">
                 {#each messages as msg}
-                    <div
-                        class="flex {msg.role === 'user'
-                            ? 'justify-end'
-                            : 'justify-start'}"
-                        transition:fade
-                    >
-                        <div
-                            class="max-w-[85%] p-4 rounded-2xl text-[11px] font-medium leading-relaxed {msg.role ===
-                            'user'
-                                ? 'bg-primary text-primary-content rounded-tr-none shadow-lg shadow-primary/10'
-                                : 'bg-white text-slate-700 border border-slate-200 rounded-tl-none'}"
-                        >
-                            {msg.content}
+                    <div class="flex {msg.role === 'user' ? 'justify-end' : 'justify-start'}">
+                        <div class="max-w-[90%] p-3.5 rounded-2xl text-xs leading-relaxed {msg.role === 'user' ? 'bg-rose-600 text-white font-bold shadow-xs' : 'bg-slate-100 dark:bg-slate-800 border border-border text-foreground shadow-xs'}">
+                            <div class="whitespace-pre-wrap">{msg.content}</div>
+
+                            {#if msg.jsonPreview}
+                                <div class="mt-3 pt-3 border-t border-border space-y-2">
+                                    <div class="text-[10px] font-bold uppercase text-rose-600">Rekomendasi JSON APISIX:</div>
+                                    <pre class="p-2.5 bg-slate-200 dark:bg-slate-900 rounded-lg text-[10px] font-mono text-foreground overflow-x-auto border border-border max-h-32">{msg.jsonPreview}</pre>
+                                    <Button
+                                        size="xs"
+                                        variant="default"
+                                        class="w-full gap-1.5 font-bold"
+                                        onclick={() => applyAIConfiguration(msg.jsonPreview!)}
+                                    >
+                                        <Check class="w-3.5 h-3.5" />
+                                        <span>Apply AI Configuration</span>
+                                    </Button>
+                                </div>
+                            {/if}
                         </div>
                     </div>
                 {/each}
 
                 {#if isTyping}
                     <div class="flex justify-start">
-                        <div
-                            class="bg-white border border-slate-200 p-4 rounded-2xl rounded-tl-none"
-                        >
-                            <div class="flex gap-1.5">
-                                <span
-                                    class="w-1.5 h-1.5 bg-slate-300 rounded-full animate-bounce"
-                                ></span>
-                                <span
-                                    class="w-1.5 h-1.5 bg-slate-300 rounded-full animate-bounce [animation-delay:0.2s]"
-                                ></span>
-                                <span
-                                    class="w-1.5 h-1.5 bg-slate-300 rounded-full animate-bounce [animation-delay:0.4s]"
-                                ></span>
-                            </div>
+                        <div class="p-3.5 rounded-2xl bg-slate-100 dark:bg-slate-800 border border-border text-xs flex items-center gap-2 text-muted-foreground">
+                            <Loader2 class="w-4 h-4 animate-spin text-rose-600" />
+                            <span>Menganalisis prompt & memproses model AI...</span>
                         </div>
                     </div>
                 {/if}
             </div>
 
-            <!-- Footer -->
-            <div class="p-6 bg-white border-t border-slate-100">
-                {#if messages.length === 1}
-                    <div class="flex flex-wrap gap-1.5 mb-4">
-                        {#each suggestions as s}
-                            <button
-                                onclick={() => applySuggestion(s)}
-                                class="px-3 py-1.5 rounded-full bg-slate-50 border border-slate-200 text-[9px] font-black uppercase tracking-widest text-slate-500 hover:border-primary hover:text-primary transition-all"
-                            >
-                                {s}
-                            </button>
-                        {/each}
-                    </div>
-                {/if}
-                <div
-                    class="relative flex items-center group focus-within:ring-2 focus-within:ring-primary/20 rounded-2xl transition-all"
-                >
-                    <input
-                        bind:value={query}
-                        onkeydown={(e) => e.key === "Enter" && handleSend()}
-                        placeholder="Ask for a configuration..."
-                        class="w-full h-12 pl-4 pr-12 bg-slate-50 rounded-2xl border-none focus:ring-0 text-[11px] font-bold text-slate-900 placeholder:text-slate-300"
-                    />
+            <!-- Quick Suggestions -->
+            <div class="px-4 py-2.5 bg-slate-100 dark:bg-slate-800 border-t border-border flex items-center gap-1.5 overflow-x-auto">
+                <span class="text-[10px] text-muted-foreground font-bold shrink-0">Saran:</span>
+                {#each suggestions as s}
                     <button
-                        onclick={handleSend}
-                        class="absolute right-2 p-2 bg-primary text-primary-content rounded-xl hover:scale-105 transition-all shadow-lg shadow-primary/20"
+                        type="button"
+                        onclick={() => applySuggestion(s)}
+                        class="text-[10px] px-2.5 py-1 bg-white dark:bg-slate-900 hover:bg-accent border border-border rounded-lg shrink-0 text-foreground font-medium transition-colors shadow-2xs"
                     >
-                        <Send class="w-3.5 h-3.5" />
+                        {s}
                     </button>
-                </div>
+                {/each}
+            </div>
+
+            <!-- Input Bar -->
+            <div class="p-3 bg-white dark:bg-slate-900 border-t border-border flex items-center gap-2">
+                <Input
+                    bind:value={query}
+                    onkeydown={(e) => e.key === "Enter" && handleSend()}
+                    placeholder="Instruksikan AI untuk konfigurasi rute/plugin..."
+                    class="h-9 text-xs flex-1 bg-slate-50 dark:bg-slate-950"
+                />
+                <Button size="sm" class="h-9 px-3" onclick={handleSend} disabled={isTyping || !query.trim()}>
+                    <Send class="w-3.5 h-3.5" />
+                </Button>
             </div>
         </div>
     {/if}
 
-    <button
+    <!-- Toggle Floating Button -->
+    <Button
+        variant="default"
+        size="lg"
         onclick={() => (isOpen = !isOpen)}
-        class="h-16 w-16 rounded-full bg-slate-900 text-white shadow-2xl flex items-center justify-center group hover:scale-110 active:scale-95 transition-all relative overflow-hidden"
+        class="shadow-xl rounded-full px-5 py-6 gap-2 text-white font-bold transition-all hover:scale-105"
     >
-        <div
-            class="absolute inset-0 bg-primary opacity-0 group-hover:opacity-10 transition-opacity"
-        ></div>
-        <Sparkles
-            class="w-7 h-7 {isOpen
-                ? 'rotate-45 text-primary'
-                : 'text-white'} transition-all duration-500"
-        />
-    </button>
+        <Sparkles class="w-5 h-5 text-amber-300" />
+        <span class="font-bold text-xs">AI Copilot</span>
+        {#if $aiStore.selectedModel}
+            <span class="text-[10px] opacity-80 font-normal border-l border-white/30 pl-2">
+                {$aiStore.selectedModel}
+            </span>
+        {/if}
+    </Button>
 </div>

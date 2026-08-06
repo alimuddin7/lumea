@@ -1,4 +1,6 @@
 <script lang="ts">
+    import Badge from "./Badge.svelte";
+
     interface Props {
         status: boolean | number | string;
         trueLabel?: string;
@@ -12,58 +14,35 @@
         status,
         trueLabel = "Active",
         falseLabel = "Inactive",
-        trueType = "success",
-        falseType = "base-300",
+        trueType,
+        falseType,
         subtitle,
     }: Props = $props();
 
     const isActive = $derived(
-        status === true || status === 1 || status === "active",
+        status === true || status === 1 || status === "active" || status === "Enabled"
     );
 </script>
 
-<div
-    class="flex items-center gap-2.5 {isActive
-        ? ''
-        : 'opacity-40 grayscale'} transition-all duration-300"
->
-    <div class="relative flex items-center justify-center">
-        {#if isActive}
-            <div
-                class="absolute w-2.5 h-2.5 rounded-full bg-{trueType} animate-ping opacity-20"
-            ></div>
-            <div class="absolute w-4 h-4 rounded-full bg-{trueType}/10"></div>
-        {/if}
-        <div
-            class="w-2 h-2 rounded-full bg-{isActive
-                ? trueType
-                : falseType} relative shadow-[0_0_8px_rgba(var(--{isActive
-                ? 'p'
-                : 'bc'}),0.3)]"
-        ></div>
-    </div>
-    <div class="flex flex-col">
-        <div class="flex items-center gap-1.5">
-            <span
-                class="text-[10px] font-black uppercase tracking-[0.1em] {isActive
-                    ? 'text-base-content'
-                    : 'text-base-content/60'}"
-            >
-                {isActive ? trueLabel : falseLabel}
+<div class="flex items-center gap-2">
+    {#if isActive}
+        <Badge variant="success" class="gap-1.5 py-0.5">
+            <span class="relative flex h-1.5 w-1.5">
+                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span class="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span>
             </span>
-            {#if isActive}
-                <span class="flex h-1 w-1">
-                    <span
-                        class="animate-ping absolute inline-flex h-1 w-1 rounded-full bg-success opacity-75"
-                    ></span>
-                    <span
-                        class="relative inline-flex rounded-full h-1 w-1 bg-success"
-                    ></span>
-                </span>
-            {/if}
-        </div>
-        {#if subtitle}
+            {trueLabel}
+        </Badge>
+    {:else}
+        <Badge variant="secondary" class="gap-1.5 py-0.5 opacity-70">
+            <span class="h-1.5 w-1.5 rounded-full bg-muted-foreground/60"></span>
+            {falseLabel}
+        </Badge>
+    {/if}
+
+    {#if subtitle}
+        <span class="text-xs text-muted-foreground">
             {@render subtitle()}
-        {/if}
-    </div>
+        </span>
+    {/if}
 </div>

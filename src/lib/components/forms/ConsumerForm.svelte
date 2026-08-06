@@ -1,23 +1,17 @@
 <script lang="ts">
     import { onMount } from "svelte";
     import { apiFetch } from "$lib/api/client";
-    import { Save, ArrowLeft, Info, LayoutTemplate, X } from "lucide-svelte";
+    import { Save, ArrowLeft, Users, Fingerprint, Sliders, Loader2 } from "lucide-svelte";
     import { goto } from "$app/navigation";
     import Editor from "$lib/components/Editor.svelte";
     import PluginManager from "$lib/components/ui/PluginManager.svelte";
-    import {
-        PLUGIN_TEMPLATES,
-        type PluginName,
-    } from "$lib/utils/pluginTemplates";
+    import Card from "$lib/components/ui/Card.svelte";
+    import Input from "$lib/components/ui/Input.svelte";
+    import Button from "$lib/components/ui/Button.svelte";
 
     let { username } = $props();
-    let loading = $state(true);
+    let loading = $state(false);
     let saving = $state(false);
-
-    // Set initial loading state
-    onMount(() => {
-        loading = username !== "new";
-    });
 
     let consumer = $state<any>({
         username: "",
@@ -27,25 +21,23 @@
     });
 
     let pluginsJson = $state("{}");
-    let pluginsLanguage = $state("json");
-    let showTemplateSelector = $state(false);
     let editorMode = $state<"visual" | "code">("visual");
 
     let groupsList = $state<any[]>([]);
     let loadingGroups = $state(true);
 
     onMount(async () => {
-        // Fetch groups for the dropdown
         try {
             const data = await apiFetch("consumer_groups");
             groupsList = data.list || [];
         } catch (err) {
-            console.warn("Failed to fetch groups for dropdown");
+            console.warn("Failed to fetch consumer groups");
         } finally {
             loadingGroups = false;
         }
 
         if (username !== "new") {
+            loading = true;
             try {
                 const data = await apiFetch(`consumers/${username}`);
                 consumer = data.value;
@@ -58,26 +50,14 @@
         }
     });
 
-    function applyTemplate(name: PluginName) {
-        try {
-            const currentPlugins = JSON.parse(pluginsJson);
-            currentPlugins[name] = PLUGIN_TEMPLATES[name];
-            pluginsJson = JSON.stringify(currentPlugins, null, 2);
-            showTemplateSelector = false;
-        } catch (err) {
-            alert(
-                "Ensure your current JSON is valid before adding a template.",
-            );
-        }
-    }
-
     async function saveConsumer() {
+        if (!consumer.username.trim()) {
+            alert("Username cannot be empty.");
+            return;
+        }
         saving = true;
         try {
             consumer.plugins = JSON.parse(pluginsJson);
-
-            // APISIX PUT /consumers/{username} often requires username in body
-            // and definitely doesn't want create_time/update_time
             const { create_time, update_time, ...saveData } = consumer;
 
             if (!saveData.group_id) {
@@ -86,156 +66,135 @@
 
             await apiFetch(`consumers/${consumer.username}`, {
                 method: "PUT",
-                body: saveData,
+                body: JSON.stringify(saveData),
             });
             goto("/consumers");
         } catch (err: any) {
-            alert("Failed to save: " + err.message);
+            alert("Failed to save consumer: " + err.message);
         } finally {
             saving = false;
         }
     }
 </script>
 
-<div class="space-y-6 max-w-5xl mx-auto pb-20">
+<div class="space-y-6 max-w-4xl mx-auto pb-20">
     <!-- Header -->
     <div class="flex items-center justify-between">
         <div class="flex items-center gap-3">
-            <a
-                href="/consumers"
-                class="p-2 hover:bg-base-200 rounded-full transition-colors opacity-50"
-            >
-                <ArrowLeft class="w-4 h-4" />
+            <a href="/consumers">
+                <Button variant="ghost" size="icon" class="h-9 w-9">
+                    <ArrowLeft class="w-4 h-4" />
+                </Button>
             </a>
-            <h1 class="text-2xl font-black tracking-tighter italic">
-                {username === "new" ? "Create Identity" : "Edit Identity"}
-            </h1>
+            <div>
+                <h1 class="text-xl font-bold tracking-tight text-foreground">
+                    {username === "new" ? "Create New API Consumer" : `Edit Consumer: ${consumer.username}`}
+                </h1>
+                <p class="text-xs text-muted-foreground">
+                    Assign consumer identity, external reference ID, and auth policy plugins.
+                </p>
+            </div>
         </div>
-        <button
+
+        <Button
             onclick={saveConsumer}
             disabled={saving || loading}
-            class="flex items-center gap-2 px-6 py-2 bg-primary hover:bg-primary/90 disabled:opacity-20 text-primary-content font-black rounded-xl transition-all shadow-lg shadow-primary/10 text-xs uppercase tracking-widest"
+            variant="default"
+            size="sm"
+            class="gap-1.5 shadow-sm"
         >
             {#if saving}
-                <div
-                    class="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"
-                ></div>
+                <Loader2 class="w-4 h-4 animate-spin" />
                 <span>Saving...</span>
             {:else}
                 <Save class="w-4 h-4" />
-                <span>Save Identity</span>
+                <span>Save Consumer</span>
             {/if}
-        </button>
+        </Button>
     </div>
 
     {#if loading}
-        <div class="py-32 flex flex-col items-center justify-center opacity-20">
-            <div class="loading loading-spinner loading-lg"></div>
-            <p class="mt-4 text-[10px] font-black uppercase tracking-[0.2em]">
-                Synchronizing Entity
-            </p>
-        </div>
+        <Card class="p-12 text-center text-muted-foreground text-xs font-medium">
+            Loading consumer details...
+        </Card>
     {:else}
-        <div class="space-y-8">
-            <section class="section-card">
-                <h2 class="section-title">
-                    <div class="flex items-center gap-2">
-                        <Info class="w-4 h-4 text-primary opacity-50" />
-                        Basic Information
-                    </div>
-                </h2>
-                <div class="grid grid-cols-2 gap-4">
-                    <div class="space-y-1">
-                        <label for="c-user" class="label-minimal"
-                            >Username</label
-                        >
-                        <input
-                            id="c-user"
+        <div class="space-y-6">
+            <!-- Consumer Identity Card -->
+            <Card class="p-6 space-y-4">
+                <div class="flex items-center gap-2 pb-3 border-b border-border">
+                    <Users class="w-4 h-4 text-primary" />
+                    <h2 class="font-semibold text-sm text-foreground">
+                        Consumer Identity Profile
+                    </h2>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="space-y-1.5">
+                        <label for="consumerUsernameInput" class="text-xs font-semibold text-foreground">
+                            Username
+                        </label>
+                        <Input
+                            id="consumerUsernameInput"
                             type="text"
                             bind:value={consumer.username}
                             disabled={username !== "new"}
-                            placeholder="e.g. mobile_client"
-                            class="input-minimal"
+                            placeholder="e.g. partner-client-01"
+                            required
+                            class="h-9 text-xs"
                         />
                     </div>
-                    <div class="space-y-1">
-                        <label for="c-group" class="label-minimal"
-                            >Consumer Group</label
-                        >
-                        <select
-                            id="c-group"
-                            bind:value={consumer.group_id}
-                            class="input-minimal appearance-none bg-base-100"
-                        >
-                            <option value="">None (Standalone)</option>
-                            {#each groupsList as group}
-                                <option value={group.value.id}
-                                    >{group.value.id}</option
-                                >
-                            {/each}
-                        </select>
-                    </div>
-                </div>
 
-                <div class="pt-4 border-t border-base-300/30">
-                    <div class="space-y-1">
-                        <label for="c-id" class="label-minimal"
-                            >Custom/System ID</label
-                        >
-                        <input
-                            id="c-id"
+                    <div class="space-y-1.5">
+                        <label for="consumerCustomIdInput" class="text-xs font-semibold text-foreground flex items-center gap-1">
+                            <Fingerprint class="w-3.5 h-3.5 text-primary" />
+                            <span>Custom Reference ID</span>
+                        </label>
+                        <Input
+                            id="consumerCustomIdInput"
                             type="text"
                             bind:value={consumer.custom_id}
-                            placeholder="e.g. 1a2b3c"
-                            class="input-minimal bg-base-200/50"
+                            placeholder="e.g. client-guid-890"
+                            class="h-9 text-xs font-mono"
                         />
                     </div>
                 </div>
-            </section>
+            </Card>
 
-            <section class="section-card">
-                <div class="section-title">
+            <!-- Auth Plugins Card -->
+            <Card class="p-6 space-y-4">
+                <div class="flex items-center justify-between pb-3 border-b border-border">
                     <div class="flex items-center gap-2">
-                        Credentials & Plugins
+                        <Sliders class="w-4 h-4 text-primary" />
+                        <h2 class="font-semibold text-sm text-foreground">
+                            Consumer Credentials & Auth Plugins
+                        </h2>
+                    </div>
+                    <div class="flex items-center gap-1 bg-muted p-0.5 rounded-lg border border-border">
+                        <button
+                            type="button"
+                            onclick={() => editorMode = "visual"}
+                            class="px-2 py-0.5 rounded text-[11px] font-medium transition-all {editorMode === 'visual' ? 'bg-background text-foreground shadow-xs' : 'text-muted-foreground'}"
+                        >
+                            Visual
+                        </button>
+                        <button
+                            type="button"
+                            onclick={() => editorMode = "code"}
+                            class="px-2 py-0.5 rounded text-[11px] font-medium transition-all {editorMode === 'code' ? 'bg-background text-foreground shadow-xs' : 'text-muted-foreground'}"
+                        >
+                            JSON
+                        </button>
                     </div>
                 </div>
 
-                {#if showTemplateSelector}
-                    <div
-                        class="bg-base-200 p-4 rounded-xl border border-base-300 animate-in fade-in slide-in-from-top-2 mb-4"
-                    >
-                        <div
-                            class="flex items-center justify-between mb-3 px-1"
-                        >
-                            <span
-                                class="text-[9px] font-black uppercase tracking-[0.2em] opacity-40"
-                                >Choose authentication template</span
-                            >
-                            <button
-                                onclick={() => (showTemplateSelector = false)}
-                                class="opacity-20 hover:opacity-100"
-                                ><X class="w-3 h-3" /></button
-                            >
-                        </div>
-                        <div class="flex flex-wrap gap-1.5">
-                            {#each ["key-auth", "jwt-auth", "basic-auth"] as t}
-                                <button
-                                    onclick={() =>
-                                        applyTemplate(t as PluginName)}
-                                    class="btn btn-ghost btn-xs h-8 rounded-lg bg-base-100 border border-base-300 text-[9px] font-black uppercase tracking-widest px-3 hover:bg-primary hover:text-primary-content hover:border-primary transition-all"
-                                >
-                                    {t}
-                                </button>
-                            {/each}
-                        </div>
+                {#if editorMode === "visual"}
+                    <PluginManager bind:pluginsJson />
+                {:else}
+                    <div class="h-72 border border-border rounded-lg overflow-hidden">
+                        <Editor bind:value={pluginsJson} language="json" />
                     </div>
                 {/if}
-
-                <PluginManager
-                    bind:pluginsJson
-                    contextLabel="Consumer Plugin Manifest"
-                />
-            </section>
+            </Card>
         </div>
     {/if}
 </div>

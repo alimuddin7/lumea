@@ -1,16 +1,12 @@
 <script lang="ts">
     import { onMount } from "svelte";
     import { apiFetch } from "$lib/api/client";
-    import {
-        Plus,
-        Edit2,
-        Trash2,
-        Fingerprint,
-        ExternalLink,
-    } from "lucide-svelte";
+    import { Plus, Edit2, Trash2, Fingerprint, Users } from "lucide-svelte";
 
     import PageHeader from "$lib/components/ui/PageHeader.svelte";
     import DataTable from "$lib/components/ui/DataTable.svelte";
+    import Button from "$lib/components/ui/Button.svelte";
+    import Badge from "$lib/components/ui/Badge.svelte";
 
     let consumers = $state<any[]>([]);
     let loading = $state(true);
@@ -22,7 +18,7 @@
         consumers.filter(
             (c) =>
                 c.value.username
-                    .toLowerCase()
+                    ?.toLowerCase()
                     .includes(searchQuery.toLowerCase()) ||
                 (c.value.custom_id &&
                     c.value.custom_id
@@ -48,7 +44,7 @@
     });
 
     async function deleteConsumer(username: string) {
-        if (!confirm("Are you sure?")) return;
+        if (!confirm("Are you sure you want to delete this consumer?")) return;
         try {
             await apiFetch(`consumers/${username}`, { method: "DELETE" });
             fetchConsumers();
@@ -60,29 +56,22 @@
 
 <div class="space-y-6 max-w-7xl mx-auto pb-20">
     <PageHeader
-        title="Consumers"
-        description="Identity management for your API users. Assign specific credentials, rate limits, and restricted access for each entity."
-        badge="SECURITY ENTITIES"
-        badgeType="accent"
+        title="Consumers & Identity"
+        description="Identity management for API consumers, credentials, rate limit quotas, and access tokens."
+        badge="Security"
     >
         {#snippet actions()}
-            <a
-                href="/consumers/new"
-                class="btn btn-primary btn-md rounded-xl font-black shadow-lg shadow-primary/10 transition-all text-primary-content uppercase text-[10px] tracking-widest"
-            >
-                <Plus class="w-4 h-4 mr-1" />
-                Create Consumer
+            <a href="/consumers/new">
+                <Button variant="default" size="sm" class="gap-1.5 shadow-sm">
+                    <Plus class="w-4 h-4" />
+                    <span>Create Consumer</span>
+                </Button>
             </a>
         {/snippet}
     </PageHeader>
 
     <DataTable
-        columns={[
-            "Identity Profile",
-            "External Reference",
-            "Auth Policy",
-            "Operations",
-        ]}
+        columns={["Identity Profile", "Custom Reference ID", "Auth Policies", "Actions"]}
         items={filteredConsumers}
         {loading}
         showSearch={true}
@@ -92,70 +81,63 @@
         bind:pageSize
         {currentPage}
         onPageChange={(p) => (currentPage = p)}
-        loadingMessage="Hydrating user entities..."
-        emptyMessage="No Consumers Found"
+        loadingMessage="Syncing consumer entities..."
+        emptyMessage="No APISIX consumers found."
     >
         {#snippet rowSnippet(consumer)}
-            <td class="py-4 px-6">
-                <div>
-                    <div
-                        class="font-bold text-sm tracking-tight text-base-content/90"
-                    >
-                        {consumer.value.username}
+            <td class="py-3.5 px-4">
+                <div class="flex items-center gap-3">
+                    <div class="p-2 rounded-lg bg-primary/10 text-primary">
+                        <Users class="w-4 h-4" />
                     </div>
-                    <div class="flex items-center gap-2 mt-0.5">
-                        <span
-                            class="text-[9px] font-black uppercase tracking-[0.1em] opacity-30"
-                        >
-                            Verified Entity
-                        </span>
+                    <div>
+                        <div class="font-semibold text-xs text-foreground">
+                            {consumer.value.username}
+                        </div>
+                        <div class="text-[10px] text-muted-foreground mt-0.5">
+                            Verified APISIX Entity
+                        </div>
                     </div>
                 </div>
             </td>
-            <td class="py-4 px-6">
-                <div class="flex items-center gap-2">
-                    <Fingerprint class="w-3.5 h-3.5 opacity-20" />
-                    <span class="text-xs font-bold opacity-60">
-                        {consumer.value.custom_id || "NOT-LINKED"}
-                    </span>
+
+            <td class="py-3.5 px-4">
+                <div class="flex items-center gap-1.5 text-xs text-muted-foreground font-mono">
+                    <Fingerprint class="w-3.5 h-3.5" />
+                    <span>{consumer.value.custom_id || "N/A"}</span>
                 </div>
             </td>
-            <td class="py-4 px-6">
+
+            <td class="py-3.5 px-4">
                 <div class="flex flex-wrap gap-1">
                     {#if consumer.value.plugins && Object.keys(consumer.value.plugins).length > 0}
                         {#each Object.keys(consumer.value.plugins) as plugin}
-                            <div
-                                class="badge badge-neutral badge-xs font-black text-[8px] px-2 py-2 uppercase tracking-tight opacity-70"
-                            >
-                                {plugin.replace("-auth", "")}
-                            </div>
+                            <Badge variant="secondary" class="text-[9px] py-0 font-mono">
+                                {plugin}
+                            </Badge>
                         {/each}
                     {:else}
-                        <span class="text-[10px] font-bold opacity-20 italic"
-                            >No credentials</span
-                        >
+                        <span class="text-xs text-muted-foreground italic">No Auth Policy</span>
                     {/if}
                 </div>
             </td>
-            <td class="py-4 px-6 text-right">
-                <div class="flex justify-end gap-1">
-                    <a
-                        href="/consumers/{consumer.value.username}"
-                        class="btn btn-square btn-ghost btn-xs hover:text-primary hover:bg-primary/10 rounded-lg"
-                    >
-                        <Edit2 class="w-3.5 h-3.5" />
+
+            <td class="py-3.5 px-4">
+                <div class="flex items-center justify-end gap-1">
+                    <a href="/consumers/{consumer.value.username}">
+                        <Button variant="ghost" size="icon" class="h-7 w-7" title="Edit Consumer">
+                            <Edit2 class="w-3.5 h-3.5 text-muted-foreground hover:text-foreground" />
+                        </Button>
                     </a>
-                    <button
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        class="h-7 w-7 hover:text-destructive hover:bg-destructive/10"
                         onclick={() => deleteConsumer(consumer.value.username)}
-                        class="btn btn-square btn-ghost btn-xs hover:text-error hover:bg-error/10 rounded-lg"
+                        title="Delete Consumer"
                     >
                         <Trash2 class="w-3.5 h-3.5" />
-                    </button>
-                    <button
-                        class="btn btn-square btn-ghost btn-xs rounded-lg opacity-20 hover:opacity-100"
-                    >
-                        <ExternalLink class="w-3.5 h-3.5" />
-                    </button>
+                    </Button>
                 </div>
             </td>
         {/snippet}

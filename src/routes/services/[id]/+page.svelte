@@ -14,7 +14,6 @@
     } from "lucide-svelte";
     import { page } from "$app/state";
     import { goto } from "$app/navigation";
-    import Editor from "$lib/components/Editor.svelte";
     import PluginManager from "$lib/components/ui/PluginManager.svelte";
     import {
         PLUGIN_TEMPLATES,
@@ -22,6 +21,9 @@
     } from "$lib/utils/pluginTemplates";
     import RecipeSelector from "$lib/components/ui/RecipeSelector.svelte";
     import { type Recipe } from "$lib/utils/recipes";
+    import Card from "$lib/components/ui/Card.svelte";
+    import Button from "$lib/components/ui/Button.svelte";
+    import Input from "$lib/components/ui/Input.svelte";
 
     const id = $derived(page.params.id);
     let loading = $state(true);
@@ -35,10 +37,7 @@
     });
 
     let pluginsJson = $state("{}");
-    let pluginsLanguage = $state("json");
-    let showTemplateSelector = $state(false);
     let showRecipeSelector = $state(false);
-    let editorMode = $state<"visual" | "code">("visual");
 
     let upstreamsList = $state<any[]>([]);
     let associatedRoutes = $state<any[]>([]);
@@ -55,64 +54,54 @@
         loadingData = true;
 
         try {
-            // Fetch Upstreams for the dropdown
             const upsData = await apiFetch("upstreams");
             upstreamsList = upsData.list || [];
 
             if (id !== "new") {
                 const data = await apiFetch(`services/${id}`);
-                service = data.value;
+                service = data.value || {};
                 pluginsJson = JSON.stringify(service.plugins || {}, null, 2);
 
-                // Fetch routes to find associations
                 const routesData = await apiFetch("routes");
                 associatedRoutes = (routesData.list || []).filter(
-                    (r: any) => r.value.service_id === id,
+                    (r: any) => r.value?.service_id === id,
                 );
             }
         } catch (err) {
-            console.error("Failed to fetch data:", err);
+            console.error("Failed to fetch service data:", err);
         } finally {
             loading = false;
             loadingData = false;
         }
     }
 
-    function applyTemplate(name: PluginName) {
-        try {
-            const currentPlugins = JSON.parse(pluginsJson);
-            currentPlugins[name] = PLUGIN_TEMPLATES[name];
-            pluginsJson = JSON.stringify(currentPlugins, null, 2);
-            showTemplateSelector = false;
-        } catch (err) {
-            alert(
-                "Ensure your current JSON is valid before adding a template.",
-            );
-        }
-    }
-
     function applyRecipe(recipe: Recipe) {
         try {
             if (recipe.type === "plugin") {
-                const currentPlugins = JSON.parse(pluginsJson);
+                const currentPlugins = JSON.parse(pluginsJson || "{}");
                 Object.assign(currentPlugins, recipe.content);
                 pluginsJson = JSON.stringify(currentPlugins, null, 2);
             }
         } catch (err) {
-            alert("Failed to apply recipe. check your JSON formatting.");
+            alert("Failed to apply recipe. Check your JSON formatting.");
         }
     }
 
     async function saveService() {
+        if (!service.name?.trim()) {
+            alert("Service Name is required");
+            return;
+        }
+
         saving = true;
         try {
-            service.plugins = JSON.parse(pluginsJson);
+            service.plugins = JSON.parse(pluginsJson || "{}");
             const method = id === "new" ? "POST" : "PUT";
             const path = id === "new" ? "services" : `services/${id}`;
 
             await apiFetch(path, {
                 method,
-                body: service,
+                body: JSON.stringify(service),
             });
 
             goto("/services");
@@ -124,123 +113,128 @@
     }
 </script>
 
-<div class="space-y-6 max-w-5xl mx-auto pb-20">
+<div class="space-y-6 max-w-5xl mx-auto pb-20 font-sans">
     <!-- Header -->
-    <div class="flex items-center justify-between">
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div class="flex items-center gap-3">
             <a
                 href="/services"
-                class="p-2 hover:bg-base-200 rounded-full transition-colors opacity-50"
+                class="p-2 hover:bg-accent text-muted-foreground hover:text-foreground rounded-xl transition-colors border border-border"
+                title="Back to Services"
             >
                 <ArrowLeft class="w-4 h-4" />
             </a>
-            <h1 class="text-2xl font-black tracking-tighter italic">
-                {id === "new" ? "Create Service" : "Edit Service"}
-            </h1>
+            <div>
+                <h1 class="text-2xl font-bold tracking-tight text-foreground">
+                    {id === "new" ? "Create Service" : "Edit Service"}
+                </h1>
+                <p class="text-xs text-muted-foreground mt-0.5">
+                    Configure matching rules, target upstreams, and plugin policies.
+                </p>
+            </div>
         </div>
-        <button
+
+        <Button
             onclick={saveService}
             disabled={saving || loading}
-            class="flex items-center gap-2 px-6 py-2 bg-primary hover:bg-primary/90 disabled:opacity-20 text-primary-content font-black rounded-xl transition-all shadow-lg shadow-primary/10 text-xs uppercase tracking-widest"
+            class="gap-1.5 h-9 text-xs font-bold shadow-md"
         >
             {#if saving}
                 <div
-                    class="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"
+                    class="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"
                 ></div>
                 <span>Saving...</span>
             {:else}
                 <Save class="w-4 h-4" />
                 <span>Save Service</span>
             {/if}
-        </button>
+        </Button>
     </div>
 
     {#if loading}
-        <div class="py-32 flex flex-col items-center justify-center opacity-20">
-            <div class="loading loading-spinner loading-lg"></div>
-            <p class="mt-4 text-[10px] font-black uppercase tracking-[0.2em]">
-                Synchronizing Abstraction
+        <div class="py-32 flex flex-col items-center justify-center space-y-3">
+            <div class="w-8 h-8 border-3 border-primary border-t-transparent rounded-full animate-spin"></div>
+            <p class="text-xs font-bold text-muted-foreground tracking-wide">
+                Loading Service Abstraction...
             </p>
         </div>
     {:else}
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
-            <div class="lg:col-span-2 space-y-8">
-                <!-- Basic Config -->
-                <section class="section-card">
-                    <h2 class="section-title">
-                        <div class="flex items-center gap-2">
-                            <Info class="w-4 h-4 text-primary opacity-50" />
-                            Basic Information
-                        </div>
-                    </h2>
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+            <div class="lg:col-span-2 space-y-6">
+                <!-- Basic Config Card -->
+                <Card class="p-6 space-y-5 border-border/80 shadow-sm rounded-3xl bg-card">
+                    <div class="flex items-center gap-2 pb-3 border-b border-border">
+                        <Info class="w-4 h-4 text-primary" />
+                        <h2 class="font-bold text-sm text-foreground">Basic Information</h2>
+                    </div>
+
                     <div class="space-y-4">
-                        <div class="space-y-1">
-                            <label for="service-name" class="label-minimal"
-                                >Service Name</label
-                            >
-                            <input
+                        <div class="space-y-1.5">
+                            <label for="service-name" class="text-xs font-bold text-foreground block">
+                                Service Name
+                            </label>
+                            <Input
                                 id="service-name"
                                 type="text"
                                 bind:value={service.name}
                                 placeholder="e.g. User Authentication Service"
-                                class="input-minimal"
+                                class="h-10 text-xs"
                             />
                         </div>
-                        <div class="space-y-1">
-                            <label for="service-desc" class="label-minimal"
-                                >Description</label
-                            >
+
+                        <div class="space-y-1.5">
+                            <label for="service-desc" class="text-xs font-bold text-foreground block">
+                                Description
+                            </label>
                             <textarea
                                 id="service-desc"
                                 bind:value={service.desc}
                                 placeholder="Shared configuration for all auth-related routes..."
-                                class="input-minimal min-h-[100px] py-3"
+                                class="w-full min-h-[100px] p-3 text-xs rounded-xl border border-input bg-background focus:outline-none focus:ring-1 focus:ring-ring"
                             ></textarea>
                         </div>
                     </div>
-                </section>
+                </Card>
 
-                <!-- Plugins -->
-                <section class="section-card">
-                    <div class="section-title">
-                        <div class="flex items-center gap-2">
-                            Applied Plugins
-                        </div>
-                        <div class="flex items-center gap-2">
-                            <button
-                                onclick={() => (showRecipeSelector = true)}
-                                class="btn btn-ghost btn-xs h-7 rounded-lg border border-primary/30 flex items-center gap-2 text-[9px] font-black uppercase tracking-widest px-3 bg-primary/5 text-primary"
-                            >
-                                <Sparkles class="w-3 h-3" />
-                                Recipes & Tips
-                            </button>
-                        </div>
+                <!-- Plugins Card -->
+                <Card class="p-6 space-y-5 border-border/80 shadow-sm rounded-3xl bg-card">
+                    <div class="flex items-center justify-between pb-3 border-b border-border">
+                        <h2 class="font-bold text-sm text-foreground">Applied Plugins</h2>
+                        <Button
+                            variant="outline"
+                            size="xs"
+                            onclick={() => (showRecipeSelector = true)}
+                            class="gap-1.5 text-xs font-bold"
+                        >
+                            <Sparkles class="w-3.5 h-3.5 text-rose-600" />
+                            <span>Recipes & Tips</span>
+                        </Button>
                     </div>
 
                     <PluginManager
                         bind:pluginsJson
                         contextLabel="Service Plugin Manifest"
                     />
-                </section>
+                </Card>
             </div>
 
-            <!-- Sidebar -->
+            <!-- Right Sidebar -->
             <div class="space-y-6">
-                <section class="section-card">
-                    <h2 class="section-title">
-                        <div class="flex items-center gap-2">
-                            <Server class="w-4 h-4 text-primary opacity-50" />
-                            Upstream Binding
-                        </div>
-                    </h2>
-                    <div class="space-y-1">
-                        <label for="upstream-id" class="label-minimal"
-                            >Target Upstream</label
-                        >
+                <!-- Upstream Binding Card -->
+                <Card class="p-6 space-y-4 border-border/80 shadow-sm rounded-3xl bg-card">
+                    <div class="flex items-center gap-2 pb-3 border-b border-border">
+                        <Server class="w-4 h-4 text-primary" />
+                        <h2 class="font-bold text-sm text-foreground">Upstream Binding</h2>
+                    </div>
+
+                    <div class="space-y-2">
+                        <label for="upstream-id" class="text-xs font-bold text-foreground block">
+                            Target Upstream
+                        </label>
                         <select
                             id="upstream-id"
                             bind:value={service.upstream_id}
-                            class="input-minimal appearance-none bg-base-100"
+                            class="w-full h-10 px-3 text-xs rounded-xl border border-input bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
                         >
                             <option value="">None (Standalone)</option>
                             {#each upstreamsList as ups}
@@ -249,67 +243,44 @@
                                 </option>
                             {/each}
                         </select>
-                        <p
-                            class="text-[9px] font-bold opacity-20 uppercase tracking-widest pt-1 italic"
-                        >
-                            Select the upstream nodes for this service.
+                        <p class="text-[11px] text-muted-foreground italic leading-relaxed pt-1">
+                            Select the target upstream nodes to handle proxying for this service.
                         </p>
                     </div>
-                </section>
+                </Card>
 
                 {#if id !== "new"}
-                    <section
-                        class="section-card border-l-4 border-l-primary/30"
-                    >
-                        <h2 class="section-title">
-                            <div class="flex items-center gap-2">
-                                <Network
-                                    class="w-4 h-4 text-primary opacity-50"
-                                />
-                                Involved Routes
-                            </div>
-                        </h2>
-                        <div class="space-y-3">
+                    <Card class="p-6 space-y-4 border-border/80 shadow-sm rounded-3xl bg-card">
+                        <div class="flex items-center gap-2 pb-3 border-b border-border">
+                            <Network class="w-4 h-4 text-primary" />
+                            <h2 class="font-bold text-sm text-foreground">Involved Routes</h2>
+                        </div>
+
+                        <div class="space-y-2">
                             {#if associatedRoutes.length === 0}
-                                <p
-                                    class="text-[10px] font-bold opacity-30 italic py-2 text-center"
-                                >
+                                <p class="text-xs text-muted-foreground italic py-2 text-center">
                                     No routes currently using this service.
                                 </p>
                             {:else}
                                 {#each associatedRoutes as route}
                                     <a
                                         href="/routes/{route.value.id}"
-                                        class="flex items-center justify-between p-3 bg-base-200/50 rounded-xl border border-base-300/30 hover:border-primary/30 hover:bg-base-200 transition-all group"
+                                        class="flex items-center justify-between p-3 bg-muted/30 rounded-xl border border-border/60 hover:border-primary/40 hover:bg-muted/50 transition-all group"
                                     >
-                                        <div class="space-y-1">
-                                            <p
-                                                class="text-[11px] font-black tracking-tight"
-                                            >
-                                                {route.value.name ||
-                                                    route.value.id}
+                                        <div class="space-y-0.5 max-w-[80%]">
+                                            <p class="text-xs font-bold text-foreground truncate">
+                                                {route.value.name || route.value.id}
                                             </p>
-                                            <p
-                                                class="text-[9px] font-mono opacity-40"
-                                            >
-                                                {route.value.uri ||
-                                                    "Multiple Hosts"}
+                                            <p class="text-[11px] font-mono text-muted-foreground truncate">
+                                                {route.value.uri || "Multiple Hosts"}
                                             </p>
                                         </div>
-                                        <ExternalLink
-                                            class="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity"
-                                        />
+                                        <ExternalLink class="w-3.5 h-3.5 text-muted-foreground group-hover:text-primary transition-colors" />
                                     </a>
                                 {/each}
                             {/if}
                         </div>
-                        <p
-                            class="text-[9px] font-bold opacity-20 uppercase tracking-widest pt-1 italic"
-                        >
-                            These routes inherit configuration from this
-                            service.
-                        </p>
-                    </section>
+                    </Card>
                 {/if}
             </div>
         </div>

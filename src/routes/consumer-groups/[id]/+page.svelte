@@ -5,17 +5,21 @@
         Save,
         ArrowLeft,
         Info,
-        LayoutTemplate,
-        X,
         Users,
+        Sparkles,
     } from "lucide-svelte";
     import { page } from "$app/state";
     import { goto } from "$app/navigation";
-    import Editor from "$lib/components/Editor.svelte";
+    import PluginManager from "$lib/components/ui/PluginManager.svelte";
     import {
         PLUGIN_TEMPLATES,
         type PluginName,
     } from "$lib/utils/pluginTemplates";
+    import RecipeSelector from "$lib/components/ui/RecipeSelector.svelte";
+    import { type Recipe } from "$lib/utils/recipes";
+    import Card from "$lib/components/ui/Card.svelte";
+    import Button from "$lib/components/ui/Button.svelte";
+    import Input from "$lib/components/ui/Input.svelte";
 
     const id = $derived(page.params.id);
     let loading = $state(true);
@@ -27,7 +31,7 @@
     });
 
     let pluginsJson = $state("{}");
-    let showTemplateSelector = $state(false);
+    let showRecipeSelector = $state(false);
 
     $effect(() => {
         if (id) {
@@ -40,7 +44,7 @@
         try {
             if (id !== "new") {
                 const data = await apiFetch(`consumer_groups/${id}`);
-                group = data.value;
+                group = data.value || {};
                 pluginsJson = JSON.stringify(group.plugins || {}, null, 2);
             }
         } catch (err) {
@@ -50,30 +54,34 @@
         }
     }
 
-    function applyTemplate(name: PluginName) {
+    function applyRecipe(recipe: Recipe) {
         try {
-            const currentPlugins = JSON.parse(pluginsJson);
-            currentPlugins[name] = PLUGIN_TEMPLATES[name];
-            pluginsJson = JSON.stringify(currentPlugins, null, 2);
-            showTemplateSelector = false;
+            if (recipe.type === "plugin") {
+                const currentPlugins = JSON.parse(pluginsJson || "{}");
+                Object.assign(currentPlugins, recipe.content);
+                pluginsJson = JSON.stringify(currentPlugins, null, 2);
+            }
         } catch (err) {
-            alert(
-                "Ensure your current JSON is valid before adding a template.",
-            );
+            alert("Failed to apply recipe. Check your JSON formatting.");
         }
     }
 
     async function saveGroup() {
+        if (!group.id?.trim()) {
+            alert("Group ID (Name) is required");
+            return;
+        }
+
         saving = true;
         try {
-            group.plugins = JSON.parse(pluginsJson);
+            group.plugins = JSON.parse(pluginsJson || "{}");
             const method = id === "new" ? "POST" : "PUT";
             const path =
                 id === "new" ? "consumer_groups" : `consumer_groups/${id}`;
 
             await apiFetch(path, {
                 method,
-                body: group,
+                body: JSON.stringify(group),
             });
 
             goto("/consumer-groups");
@@ -85,133 +93,100 @@
     }
 </script>
 
-<div class="space-y-6 max-w-5xl mx-auto pb-20">
+<div class="space-y-6 max-w-5xl mx-auto pb-20 font-sans">
     <!-- Header -->
-    <div class="flex items-center justify-between">
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div class="flex items-center gap-3">
             <a
                 href="/consumer-groups"
-                class="p-2 hover:bg-base-200 rounded-full transition-colors opacity-50"
+                class="p-2 hover:bg-accent text-muted-foreground hover:text-foreground rounded-xl transition-colors border border-border"
+                title="Back to Consumer Groups"
             >
                 <ArrowLeft class="w-4 h-4" />
             </a>
-            <h1 class="text-2xl font-black tracking-tighter italic">
-                {id === "new" ? "Create Group" : "Edit Group"}
-            </h1>
+            <div>
+                <h1 class="text-2xl font-bold tracking-tight text-foreground">
+                    {id === "new" ? "Create Group" : "Edit Group"}
+                </h1>
+                <p class="text-xs text-muted-foreground mt-0.5">
+                    Define global plugin policies shared across all consumers in this group.
+                </p>
+            </div>
         </div>
-        <button
+
+        <Button
             onclick={saveGroup}
             disabled={saving || loading}
-            class="flex items-center gap-2 px-6 py-2 bg-primary hover:bg-primary/90 disabled:opacity-20 text-primary-content font-black rounded-xl transition-all shadow-lg shadow-primary/10 text-xs uppercase tracking-widest"
+            class="gap-1.5 h-9 text-xs font-bold shadow-md"
         >
             {#if saving}
                 <div
-                    class="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"
+                    class="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"
                 ></div>
                 <span>Saving...</span>
             {:else}
                 <Save class="w-4 h-4" />
                 <span>Save Group</span>
             {/if}
-        </button>
+        </Button>
     </div>
 
     {#if loading}
-        <div class="py-32 flex flex-col items-center justify-center opacity-20">
-            <div class="loading loading-spinner loading-lg"></div>
-            <p class="mt-4 text-[10px] font-black uppercase tracking-[0.2em]">
-                Synchronizing Aggregation
+        <div class="py-32 flex flex-col items-center justify-center space-y-3">
+            <div class="w-8 h-8 border-3 border-primary border-t-transparent rounded-full animate-spin"></div>
+            <p class="text-xs font-bold text-muted-foreground tracking-wide">
+                Loading Consumer Group...
             </p>
         </div>
     {:else}
-        <div class="space-y-8">
-            <!-- Basic Config -->
-            <section class="section-card">
-                <h2 class="section-title">
-                    <div class="flex items-center gap-2">
-                        <Info class="w-4 h-4 text-primary opacity-50" />
-                        Group Identity
-                    </div>
-                </h2>
-                <div class="space-y-1 max-w-md">
-                    <label for="group-id" class="label-minimal"
-                        >Group ID (Name)</label
-                    >
-                    <input
+        <div class="space-y-6">
+            <!-- Group Identity Card -->
+            <Card class="p-6 space-y-5 border-border/80 shadow-sm rounded-3xl bg-card">
+                <div class="flex items-center gap-2 pb-3 border-b border-border">
+                    <Users class="w-4 h-4 text-primary" />
+                    <h2 class="font-bold text-sm text-foreground">Group Identity</h2>
+                </div>
+
+                <div class="space-y-2 max-w-md">
+                    <label for="group-id" class="text-xs font-bold text-foreground block">
+                        Group ID (Name)
+                    </label>
+                    <Input
                         id="group-id"
                         type="text"
                         bind:value={group.id}
                         disabled={id !== "new"}
                         placeholder="e.g. premium-tier-users"
-                        class="input-minimal"
+                        class="h-10 text-xs"
                     />
-                    <p
-                        class="text-[9px] font-bold opacity-20 uppercase tracking-widest pt-1 italic"
-                    >
-                        The unique identifier for this consumer group.
+                    <p class="text-[11px] text-muted-foreground italic pt-1">
+                        The unique identifier for this consumer group in APISIX.
                     </p>
                 </div>
-            </section>
+            </Card>
 
-            <!-- Plugins -->
-            <section class="section-card">
-                <div class="section-title">
-                    <div class="flex items-center gap-2">
-                        Group Policies (Plugins)
-                    </div>
-                    <button
-                        onclick={() =>
-                            (showTemplateSelector = !showTemplateSelector)}
-                        class="btn btn-ghost btn-xs h-7 rounded-lg border border-base-300 flex items-center gap-2 text-[9px] font-black uppercase tracking-widest px-3"
+            <!-- Group Policies (Plugins) Card -->
+            <Card class="p-6 space-y-5 border-border/80 shadow-sm rounded-3xl bg-card">
+                <div class="flex items-center justify-between pb-3 border-b border-border">
+                    <h2 class="font-bold text-sm text-foreground">Group Policies (Plugins)</h2>
+                    <Button
+                        variant="outline"
+                        size="xs"
+                        onclick={() => (showRecipeSelector = true)}
+                        class="gap-1.5 text-xs font-bold"
                     >
-                        <LayoutTemplate class="w-3 h-3" />
-                        Insert Template
-                    </button>
+                        <Sparkles class="w-3.5 h-3.5 text-rose-600" />
+                        <span>Recipes & Tips</span>
+                    </Button>
                 </div>
 
-                {#if showTemplateSelector}
-                    <div
-                        class="bg-base-200 p-4 rounded-xl border border-base-300 animate-in fade-in slide-in-from-top-2 mb-4"
-                    >
-                        <div
-                            class="flex items-center justify-between mb-3 px-1"
-                        >
-                            <span
-                                class="text-[9px] font-black uppercase tracking-[0.2em] opacity-40"
-                                >Choose a policy template</span
-                            >
-                            <button
-                                onclick={() => (showTemplateSelector = false)}
-                                class="opacity-20 hover:opacity-100"
-                                ><X class="w-3 h-3" /></button
-                            >
-                        </div>
-                        <div class="flex flex-wrap gap-1.5">
-                            {#each Object.keys(PLUGIN_TEMPLATES) as t}
-                                <button
-                                    onclick={() =>
-                                        applyTemplate(t as PluginName)}
-                                    class="btn btn-ghost btn-xs h-8 rounded-lg bg-base-100 border border-base-300 text-[9px] font-black uppercase tracking-widest px-3 hover:bg-primary hover:text-primary-content hover:border-primary transition-all"
-                                >
-                                    {t}
-                                </button>
-                            {/each}
-                        </div>
-                    </div>
-                {/if}
-
-                <p
-                    class="text-[10px] font-bold opacity-30 uppercase tracking-widest"
-                >
-                    Plugins configured here apply to all consumers who join this
-                    group.
-                </p>
-                <div
-                    class="h-[400px] rounded-xl overflow-hidden border border-base-300"
-                >
-                    <Editor bind:value={pluginsJson} language="json" />
-                </div>
-            </section>
+                <PluginManager
+                    bind:pluginsJson
+                    contextLabel="Consumer Group Policy Manifest"
+                />
+            </Card>
         </div>
     {/if}
 </div>
+
+<RecipeSelector bind:show={showRecipeSelector} onSelect={applyRecipe} />

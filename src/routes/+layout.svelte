@@ -16,42 +16,46 @@
 		Sun,
 		Moon,
 		LogOut,
-		ChevronRight,
-		ChevronLeft,
 		Layout,
 		PanelLeftClose,
 		PanelLeft,
+		Sparkles,
+		Bot,
+		Activity,
+		Search,
+		Bell,
+		X
 	} from "lucide-svelte";
 	import { config, connectionStatus } from "$lib/stores/config";
 	import { checkConnection } from "$lib/api/client";
 	import { page } from "$app/state";
+	import AISettingsDialog from "$lib/components/ui/AISettingsDialog.svelte";
+	import Button from "$lib/components/ui/Button.svelte";
+	import Badge from "$lib/components/ui/Badge.svelte";
+	import { aiStore } from "$lib/stores/aiStore";
 
 	let { children } = $props();
 
+	const isLoginPage = $derived(page.url.pathname === "/login");
+
 	const navItems = [
+		{ href: "/", icon: Activity, label: "Dashboard", exact: true },
 		{ href: "/routes", icon: Globe, label: "Routes" },
 		{ href: "/services", icon: Server, label: "Services" },
 		{ href: "/upstreams", icon: Database, label: "Upstreams" },
 		{ href: "/consumers", icon: Users, label: "Consumers" },
-		{
-			href: "/consumer-groups",
-			icon: LayoutGrid,
-			label: "Consumer Groups",
-		},
+		{ href: "/consumer-groups", icon: LayoutGrid, label: "Consumer Groups" },
 		{ href: "/plugins", icon: LayoutGrid, label: "Plugins" },
-		{
-			href: "/plugins/custom",
-			icon: Layout,
-			label: "Custom Plugins",
-		},
+		{ href: "/plugins/custom", icon: Layout, label: "Custom Plugins" },
 		{ href: "/ssl", icon: ShieldCheck, label: "Certificates" },
 		{ href: "/import-export", icon: Download, label: "Import/Export" },
-		{ href: "/settings", icon: Settings, label: "Settings" },
+		{ href: "/settings", icon: Settings, label: "Settings" }
 	];
 
 	let isExpanded = $state(true);
-	let drawerChecked = $state(false);
+	let mobileSidebarOpen = $state(false);
 	let theme = $state("dark");
+	let aiDialogOpen = $state(false);
 
 	function toggleTheme() {
 		theme = theme === "light" ? "dark" : "light";
@@ -59,11 +63,15 @@
 	}
 
 	function applyTheme(newTheme: string) {
-		document.documentElement.setAttribute("data-theme", newTheme);
+		if (newTheme === "light") {
+			document.documentElement.classList.add("light");
+			document.documentElement.classList.remove("dark");
+		} else {
+			document.documentElement.classList.add("dark");
+			document.documentElement.classList.remove("light");
+		}
 		localStorage.setItem("theme", newTheme);
 	}
-
-	// Logout is now handled via form submission to /logout
 
 	async function performHealthCheck() {
 		connectionStatus.set("checking");
@@ -72,16 +80,14 @@
 	}
 
 	onMount(() => {
-		// Initialize theme
 		const savedTheme =
 			localStorage.getItem("theme") ||
-			(window.matchMedia("(prefers-color-scheme: dark)").matches
-				? "dark"
-				: "light");
+			(window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
 		theme = savedTheme;
 		applyTheme(theme);
 
-		// Initialize sidebar state from local storage
+		aiStore.init();
+
 		const savedSidebar = localStorage.getItem("sidebar_expanded");
 		if (savedSidebar !== null) {
 			isExpanded = savedSidebar === "true";
@@ -102,314 +108,207 @@
 		return () => clearInterval(interval);
 	});
 
-	$effect(() => {
-		localStorage.setItem("sidebar_expanded", isExpanded.toString());
-	});
+	function toggleSidebar() {
+		isExpanded = !isExpanded;
+		localStorage.setItem("sidebar_expanded", String(isExpanded));
+	}
 </script>
 
 <svelte:head>
 	<link rel="icon" href={favicon} />
-	<title>Lumea - Modern APISIX Control Center</title>
+	<title>Lumea — Modern APISIX Control Center</title>
 </svelte:head>
 
-{#if page.url.pathname === "/login"}
-	<main class="min-h-screen">
+{#if isLoginPage}
+	<!-- Standalone Fullscreen Container for Login Page -->
+	<div class="min-h-screen bg-background text-foreground font-sans antialiased">
 		{@render children()}
-	</main>
+	</div>
 {:else}
-	<div class="drawer lg:drawer-open font-sans min-h-screen bg-base-200">
-		<input
-			id="main-drawer"
-			type="checkbox"
-			class="drawer-toggle"
-			bind:checked={drawerChecked}
-		/>
+	<!-- Full Dashboard Layout with Header, Sidebar, and Main Area -->
+	<div class="min-h-screen bg-background text-foreground flex flex-col font-sans antialiased">
+		<!-- Top Navigation Header -->
+		<header class="h-16 border-b border-border bg-card/90 backdrop-blur-md sticky top-0 z-40 px-4 flex items-center justify-between shadow-xs">
+			<div class="flex items-center gap-3">
+				<button
+					type="button"
+					onclick={() => mobileSidebarOpen = !mobileSidebarOpen}
+					class="p-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-accent lg:hidden border border-border"
+					aria-label="Open Mobile Menu"
+				>
+					<MenuIcon class="w-5 h-5" />
+				</button>
 
-		<div class="drawer-content flex flex-col min-h-screen">
-			<!-- Navbar -->
-			<nav
-				class="navbar w-full bg-base-100/80 backdrop-blur-md border-b border-base-300 px-4 lg:px-6 sticky top-0 z-30 h-16"
-			>
-				<div class="flex-none lg:hidden">
-					<label
-						for="main-drawer"
-						aria-label="open sidebar"
-						class="btn btn-square btn-ghost"
-					>
-						<MenuIcon class="w-6 h-6" />
-					</label>
+				<button
+					type="button"
+					onclick={toggleSidebar}
+					class="p-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-accent hidden lg:flex border border-border/50"
+					title={isExpanded ? "Collapse Sidebar" : "Expand Sidebar"}
+				>
+					{#if isExpanded}
+						<PanelLeftClose class="w-4 h-4" />
+					{:else}
+						<PanelLeft class="w-4 h-4" />
+					{/if}
+				</button>
+
+				<!-- Global Search Bar -->
+				<div class="relative hidden sm:block w-72">
+					<Search class="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+					<input
+						type="text"
+						placeholder="Search routes, services, upstreams..."
+						class="w-full h-8 pl-9 pr-3 text-xs bg-muted/40 border border-border rounded-xl focus:outline-none focus:ring-1 focus:ring-primary transition-all"
+					/>
 				</div>
+			</div>
 
-				<div class="flex-1 flex items-center gap-3 px-2">
-					<div class="hidden lg:flex">
-						<button
-							onclick={() => (isExpanded = !isExpanded)}
-							class="btn btn-ghost btn-xs btn-square opacity-40 hover:opacity-100 transition-opacity"
-							title={isExpanded
-								? "Collapse Sidebar"
-								: "Expand Sidebar"}
-						>
-							{#if isExpanded}
-								<PanelLeftClose class="w-4 h-4" />
-							{:else}
-								<PanelLeft class="w-4 h-4" />
-							{/if}
-						</button>
-					</div>
+			<!-- Right Header Tools -->
+			<div class="flex items-center gap-3">
+				<!-- AI Integration Quick Pill -->
+				<button
+					type="button"
+					onclick={() => aiDialogOpen = true}
+					class="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-xl border border-primary/30 bg-primary/10 text-primary hover:bg-primary/20 transition-all text-xs font-bold shadow-xs"
+				>
+					<Sparkles class="w-3.5 h-3.5" />
+					<span>{$aiStore.selectedModel || "Setup AI Key"}</span>
+				</button>
 
-					<!-- Lumea Branding (Mobile Only) -->
-					<div class="flex lg:hidden items-center gap-3">
-						<img
-							src="/lumea.png"
-							alt="Lumea"
-							class="h-6 w-auto object-contain"
-						/>
-					</div>
+				<!-- Theme Switcher -->
+				<button
+					type="button"
+					onclick={toggleTheme}
+					class="p-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-accent border border-border/50 transition-colors"
+					title="Toggle Theme"
+				>
+					{#if theme === "light"}
+						<Moon class="w-4 h-4" />
+					{:else}
+						<Sun class="w-4 h-4" />
+					{/if}
+				</button>
 
-					<div
-						class="flex items-center gap-2 px-3 py-1 bg-base-200/50 rounded-full border border-base-300/50 h-8"
-					>
-						<div
-							class="w-1.5 h-1.5 rounded-full {$connectionStatus ===
-							'connected'
-								? 'bg-success shadow-[0_0_8px_rgba(34,197,94,0.4)]'
-								: $connectionStatus === 'checking'
-									? 'bg-warning'
-									: 'bg-error'}"
-						></div>
-						<span
-							class="text-[10px] font-black uppercase tracking-[0.15em] opacity-40"
-						>
-							{$connectionStatus}
-						</span>
-					</div>
-				</div>
-
-				<div class="flex-none gap-3">
-					<!-- Theme Toggle -->
-					<button
-						class="btn btn-ghost btn-circle btn-sm"
-						onclick={toggleTheme}
-					>
-						{#if theme === "light"}
-							<Moon class="w-4 h-4 opacity-60" />
-						{:else}
-							<Sun class="w-4 h-4 opacity-60" />
-						{/if}
-					</button>
-
-					<button
-						onclick={performHealthCheck}
-						class="btn btn-ghost btn-circle btn-sm"
-						aria-label="Refresh status"
-					>
-						<RefreshCw
-							class={"w-4 h-4 opacity-60 " +
-								($connectionStatus === "checking"
-									? "animate-spin"
-									: "")}
-						/>
-					</button>
-
-					<!-- User Dropdown -->
-					<div class="dropdown dropdown-end ml-1">
-						<div
-							tabindex="0"
-							role="button"
-							class="btn btn-ghost btn-circle avatar border border-base-300 shadow-sm"
-						>
-							<div
-								class="w-8 rounded-full bg-primary text-primary-content flex items-center justify-center font-black text-xs uppercase tracking-tighter italic"
-							>
-								AP
-							</div>
-						</div>
-						<ul
-							class="mt-3 z-[1] p-2 shadow-2xl menu menu-sm dropdown-content bg-base-100 rounded-2xl w-52 border border-base-300"
-						>
-							<li
-								class="menu-title px-4 py-2 opacity-40 font-black text-[9px] uppercase tracking-[0.2em]"
-							>
-								Management
-							</li>
-							<li>
-								<a href="/settings" class="py-3 font-bold"
-									>System Settings</a
-								>
-							</li>
-							<div class="divider my-0 opacity-10"></div>
-							<li>
-								<form
-									method="POST"
-									action="/logout"
-									class="w-full"
-								>
-									<button
-										type="submit"
-										class="py-3 text-error font-black italic w-full text-left"
-										>Terminate Session</button
-									>
-								</form>
-							</li>
-						</ul>
+				<!-- User Profile Avatar Pill -->
+				<div class="flex items-center gap-2 pl-2 border-l border-border">
+					<div class="w-8 h-8 rounded-full bg-primary text-primary-foreground font-bold text-xs flex items-center justify-center shadow-xs">
+						AP
 					</div>
 				</div>
-			</nav>
+			</div>
+		</header>
 
-			<!-- Page Content -->
-			<main
-				class="flex-1 p-4 lg:p-10 animate-in fade-in slide-in-from-bottom-2 duration-500 overflow-auto"
-			>
-				{@render children()}
-			</main>
-		</div>
-
-		<!-- Sidebar -->
-		<div class="drawer-side z-40 overflow-visible">
-			<label
-				for="main-drawer"
-				aria-label="close sidebar"
-				class="drawer-overlay"
-			></label>
+		<div class="flex-1 flex overflow-hidden">
+			<!-- Desktop Sidebar Container -->
 			<aside
-				class="flex h-full flex-col bg-base-100 border-r border-base-300 transition-all duration-300 ease-in-out {isExpanded
+				class="hidden lg:flex flex-col border-r border-border bg-card/80 backdrop-blur-md transition-all duration-300 z-30 {isExpanded
 					? 'w-64'
 					: 'w-20'}"
 			>
-				<!-- Brand Header -->
-				<div
-					class="h-16 flex items-center px-6 mb-6 border-b border-base-200 overflow-hidden whitespace-nowrap"
-				>
-					<div class="flex flex-col gap-1 w-full">
-						<!-- Logo -->
-						<div class="flex items-center justify-start">
-							<img
-								src="/lumea.png"
-								alt="Lumea"
-								class="{isExpanded
-									? 'h-7'
-									: 'h-6'} w-auto object-contain transition-all duration-200"
-							/>
-						</div>
+				<!-- Logo Header -->
+				<div class="h-16 px-4 flex items-center gap-3 border-b border-border/40">
+					<div class="p-2 rounded-xl bg-primary/10 text-primary">
+						<img src="/lumea.png" alt="Lumea" class="h-5 w-auto" />
 					</div>
-				</div>
-
-				<!-- Navigation Menu -->
-				<ul class="menu w-full grow px-3 gap-2 overflow-x-hidden">
-					{#each navItems as item}
-						<li>
-							<a
-								href={item.href}
-								onclick={() => (drawerChecked = false)}
-								class="flex items-center gap-4 py-3 px-4 rounded-xl transition-all font-bold group relative {page.url.pathname.startsWith(
-									item.href,
-								)
-									? 'bg-primary/10 text-primary shadow-[inset_0_0_12px_rgba(var(--p),0.05)]'
-									: 'hover:bg-base-200/50 text-base-content/50 hover:text-base-content hover:opacity-100'}"
-								class:justify-center={!isExpanded}
-							>
-								{#if page.url.pathname.startsWith(item.href)}
-									<div
-										class="absolute left-0 w-1 h-5 bg-primary rounded-r-full animate-in slide-in-from-left-full duration-500"
-									></div>
-								{/if}
-								<div
-									class="min-w-[20px] flex justify-center {isExpanded
-										? ''
-										: 'group-hover:scale-110 transition-transform'}"
-								>
-									<item.icon class="w-5 h-5" />
-								</div>
-								{#if isExpanded}
-									<span
-										class="animate-in fade-in slide-in-from-left-2 duration-300"
-										>{item.label}</span
-									>
-								{:else}
-									<div
-										class="tooltip tooltip-right absolute left-full ml-4 font-black text-[10px] uppercase tracking-widest px-2 py-1"
-										data-tip={item.label}
-									></div>
-								{/if}
-							</a>
-						</li>
-					{/each}
-				</ul>
-
-				<!-- Footer -->
-				<div class="p-6 border-t border-base-200">
 					{#if isExpanded}
-						<div class="flex flex-col gap-3">
-							<div
-								class="text-xs text-base-content/70 leading-relaxed"
-							>
-								<div class="font-black text-sm mb-0.5">
-									Lumea
-								</div>
-								<div class="text-[10px] opacity-60 font-medium">
-									Modern APISIX Control Center
-								</div>
-							</div>
-							<div
-								class="pt-4 border-t border-base-200/50 flex flex-col gap-2"
-							>
-								<form
-									method="POST"
-									action="/logout"
-									class="w-full"
-								>
-									<button
-										type="submit"
-										class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-error/10 text-error/60 hover:text-error transition-all group/logout w-full"
-									>
-										<LogOut
-											class="w-3.5 h-3.5 group-hover/logout:-translate-x-0.5 transition-transform"
-										/>
-										<span
-											class="text-[10px] font-black uppercase tracking-widest"
-											>Sign Out</span
-										>
-									</button>
-								</form>
-								<div
-									class="text-[9px] text-base-content/40 pt-2"
-								>
-									© 2026 Lumea. All rights reserved.
-								</div>
-							</div>
-						</div>
-					{:else}
-						<div class="flex justify-center">
-							<div
-								class="w-8 h-8 rounded-lg bg-base-200/50 flex items-center justify-center opacity-30"
-							>
-								<Layout class="w-3.5 h-3.5" />
-							</div>
+						<div>
+							<h1 class="font-bold text-sm leading-none text-foreground tracking-tight">Lumea</h1>
+							<p class="text-[10px] text-muted-foreground font-medium mt-0.5">APISIX Manager</p>
 						</div>
 					{/if}
 				</div>
+
+				<!-- Navigation Links with Pill Style -->
+				<nav class="flex-1 overflow-y-auto px-3 py-4 space-y-1.5">
+					{#each navItems as item}
+						{@const isActive = item.exact ? page.url.pathname === item.href : page.url.pathname.startsWith(item.href)}
+						<a
+							href={item.href}
+							class="flex items-center gap-3 px-3.5 py-2.5 rounded-2xl text-xs transition-all group relative {isActive
+								? 'bg-rose-600 text-white font-bold shadow-md shadow-rose-600/30'
+								: 'text-muted-foreground hover:bg-accent hover:text-foreground font-semibold'}"
+							title={!isExpanded ? item.label : undefined}
+						>
+							<item.icon class="w-4 h-4 shrink-0" />
+							{#if isExpanded}
+								<span class="truncate">{item.label}</span>
+							{/if}
+						</a>
+					{/each}
+				</nav>
+
+				<!-- Sidebar Footer -->
+				<div class="p-3 border-t border-border/40 shrink-0">
+					{#if isExpanded}
+						<form method="POST" action="/logout" class="w-full">
+							<button
+								type="submit"
+								class="flex items-center gap-2 w-full px-3 py-2 rounded-xl text-xs font-semibold text-destructive hover:bg-destructive/10 transition-colors"
+							>
+								<LogOut class="w-4 h-4" />
+								<span>Sign Out</span>
+							</button>
+						</form>
+					{/if}
+				</div>
 			</aside>
+
+			<!-- Mobile Sidebar Overlay Drawer -->
+			{#if mobileSidebarOpen}
+				<div class="fixed inset-0 z-[100] flex lg:hidden">
+					<button
+						type="button"
+						onclick={() => mobileSidebarOpen = false}
+						class="fixed inset-0 bg-black/70 backdrop-blur-xs"
+						aria-label="Close sidebar overlay"
+					></button>
+
+					<div class="relative w-72 bg-card h-full flex flex-col border-r border-border p-4 shadow-2xl z-[101]">
+						<div class="flex items-center justify-between pb-4 border-b border-border">
+							<div class="flex items-center gap-3">
+								<img src="/lumea.png" alt="Lumea" class="h-6 w-auto" />
+								<span class="font-bold text-sm text-foreground">Lumea APIM</span>
+							</div>
+							<button type="button" onclick={() => mobileSidebarOpen = false} class="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent">
+								<X class="w-5 h-5" />
+							</button>
+						</div>
+
+						<nav class="flex-1 py-4 space-y-1.5 overflow-y-auto">
+							{#each navItems as item}
+								{@const isActive = item.exact ? page.url.pathname === item.href : page.url.pathname.startsWith(item.href)}
+								<a
+									href={item.href}
+									onclick={() => mobileSidebarOpen = false}
+									class="flex items-center gap-3 px-3.5 py-2.5 rounded-2xl text-xs {isActive ? 'bg-rose-600 text-white font-bold shadow-md shadow-rose-600/30' : 'text-muted-foreground hover:bg-accent hover:text-foreground font-semibold'}"
+								>
+									<item.icon class="w-4 h-4" />
+									<span>{item.label}</span>
+								</a>
+							{/each}
+						</nav>
+
+						<div class="pt-4 border-t border-border">
+							<form method="POST" action="/logout" class="w-full">
+								<button
+									type="submit"
+									class="flex items-center gap-2 w-full px-3 py-2 rounded-xl text-xs font-semibold text-destructive hover:bg-destructive/10 transition-colors"
+								>
+									<LogOut class="w-4 h-4" />
+									<span>Sign Out</span>
+								</button>
+							</form>
+						</div>
+					</div>
+				</div>
+			{/if}
+
+			<!-- Main Content Area -->
+			<main class="flex-1 overflow-y-auto p-6 md:p-8 bg-background">
+				{@render children()}
+			</main>
 		</div>
 	</div>
+
+	<AISettingsDialog bind:open={aiDialogOpen} />
 {/if}
-
-<style>
-	/* @reference "tailwindcss"; */
-
-	:global(.lucide) {
-		width: 1.15rem !important;
-		height: 1.15rem !important;
-	}
-
-	:global(html) {
-		scroll-behavior: smooth;
-	}
-
-	/* Minimalist overrides */
-	.drawer-side aside {
-		scrollbar-width: none;
-	}
-	.drawer-side aside::-webkit-scrollbar {
-		display: none;
-	}
-</style>

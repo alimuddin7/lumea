@@ -8,11 +8,14 @@
         MoreVertical,
         Database,
         Server,
+        Globe
     } from "lucide-svelte";
 
     import PageHeader from "$lib/components/ui/PageHeader.svelte";
     import StatusBadge from "$lib/components/ui/StatusBadge.svelte";
     import DataTable from "$lib/components/ui/DataTable.svelte";
+    import Button from "$lib/components/ui/Button.svelte";
+    import Badge from "$lib/components/ui/Badge.svelte";
 
     let routes = $state<any[]>([]);
     let loading = $state(true);
@@ -24,7 +27,7 @@
         routes.filter(
             (route) =>
                 route.value.uri
-                    .toLowerCase()
+                    ?.toLowerCase()
                     .includes(searchQuery.toLowerCase()) ||
                 (route.value.name &&
                     route.value.name
@@ -62,17 +65,16 @@
 
 <div class="space-y-6 max-w-7xl mx-auto pb-20">
     <PageHeader
-        title="Routes"
-        description="Traffic matching rules and upstream destinations."
+        title="Routes Management"
+        description="Traffic matching rules, URI routing, and upstream service destinations."
         badge="Live"
     >
         {#snippet actions()}
-            <a
-                href="/routes/new"
-                class="btn btn-primary btn-md rounded-xl font-black shadow-lg shadow-primary/10 transition-all text-[10px] uppercase tracking-widest text-primary-content"
-            >
-                <Plus class="w-4 h-4 mr-1" />
-                Create New
+            <a href="/routes/new">
+                <Button variant="default" size="sm" class="gap-1.5 shadow-sm">
+                    <Plus class="w-4 h-4" />
+                    <span>Create New Route</span>
+                </Button>
             </a>
         {/snippet}
     </PageHeader>
@@ -82,8 +84,8 @@
             "Route Identity",
             "Matching Rules",
             "Upstream / Target",
-            "Connectivity",
-            "Operations",
+            "Status",
+            "Actions",
         ]}
         items={filteredRoutes}
         {loading}
@@ -94,175 +96,95 @@
         bind:pageSize
         {currentPage}
         onPageChange={(p) => (currentPage = p)}
-        loadingMessage="Syncing configuration..."
-        emptyMessage="No routes found."
+        loadingMessage="Syncing APISIX configuration..."
+        emptyMessage="No APISIX routes found."
     >
         {#snippet rowSnippet(route)}
-            <td class="py-4 px-6">
+            <td class="py-3.5 px-4">
                 <div>
-                    <div
-                        class="font-bold text-sm tracking-tight text-base-content/90"
-                    >
-                        {route.value.name || "Unnamed"}
+                    <div class="font-semibold text-xs text-foreground">
+                        {route.value.name || "Unnamed Route"}
                     </div>
-                    <div class="flex items-center gap-2 mt-0.5">
-                        <span
-                            class="text-[9px] font-black uppercase tracking-[0.1em] opacity-30"
-                        >
-                            {route.value.id.substring(0, 8)}
+                    <div class="flex items-center gap-2 mt-1">
+                        <span class="text-[10px] font-mono text-muted-foreground">
+                            ID: {route.value.id?.substring(0, 8)}
                         </span>
                         {#if route.value.plugins && Object.keys(route.value.plugins).length > 0}
-                            <div
-                                class="flex items-center gap-1 text-[9px] font-black text-secondary uppercase tracking-widest"
-                            >
+                            <Badge variant="secondary" class="text-[9px] py-0">
                                 {Object.keys(route.value.plugins).length} Plugins
-                            </div>
+                            </Badge>
                         {/if}
                     </div>
                 </div>
             </td>
-            <td class="py-4 px-6">
-                <div class="flex flex-col gap-1.5">
+
+            <td class="py-3.5 px-4">
+                <div class="flex flex-col gap-1">
                     <div class="flex items-center gap-2">
-                        <span
-                            class="text-[9px] font-black uppercase opacity-20 w-6"
-                            >URI</span
-                        >
-                        <code
-                            class="text-[10px] font-bold text-primary px-1.5 py-0.5 bg-primary/5 rounded border border-primary/5"
-                        >
-                            {route.value.uri}
+                        <span class="text-[10px] font-semibold text-muted-foreground uppercase w-7">URI</span>
+                        <code class="text-xs font-mono text-primary font-medium px-2 py-0.5 bg-primary/10 rounded border border-primary/20">
+                            {route.value.uri || route.value.uris?.join(", ") || "/*"}
                         </code>
                     </div>
                     <div class="flex items-center gap-2">
-                        <span
-                            class="text-[9px] font-black uppercase opacity-20 w-6"
-                            >MTH</span
-                        >
+                        <span class="text-[10px] font-semibold text-muted-foreground uppercase w-7">MTH</span>
                         <div class="flex flex-wrap gap-1">
                             {#each route.value.methods || ["ALL"] as method}
-                                <span
-                                    class="text-[8px] font-black uppercase tracking-widest {method ===
-                                    'GET'
-                                        ? 'text-success'
-                                        : method === 'POST'
-                                          ? 'text-info'
-                                          : 'opacity-40'}"
+                                <Badge
+                                    variant={method === 'GET' ? 'success' : method === 'POST' ? 'secondary' : 'outline'}
+                                    class="text-[9px] py-0 uppercase"
                                 >
                                     {method}
-                                </span>
+                                </Badge>
                             {/each}
                         </div>
                     </div>
                 </div>
             </td>
-            <td class="py-4 px-6">
-                <div class="flex flex-col gap-1">
+
+            <td class="py-3.5 px-4">
+                <div class="flex flex-col gap-1 text-xs">
                     {#if route.value.upstream_id}
-                        <div class="flex items-center gap-2">
-                            <Database
-                                class="w-3.5 h-3.5 text-primary opacity-60"
-                            />
-                            <span
-                                class="text-[10px] font-bold text-base-content/70"
-                            >
-                                {route.value.upstream_id}
-                            </span>
-                        </div>
-                        <div
-                            class="text-[8px] font-black uppercase tracking-widest opacity-20 ml-5"
-                        >
-                            Referenced Upstream
+                        <div class="flex items-center gap-1.5 text-foreground font-medium">
+                            <Database class="w-3.5 h-3.5 text-primary" />
+                            <span>Upstream: {route.value.upstream_id}</span>
                         </div>
                     {:else if route.value.service_id}
-                        <div class="flex items-center gap-2">
-                            <Server
-                                class="w-3.5 h-3.5 text-secondary opacity-60"
-                            />
-                            <span
-                                class="text-[10px] font-bold text-base-content/70"
-                            >
-                                {route.value.service_id}
-                            </span>
-                        </div>
-                        <div
-                            class="text-[8px] font-black uppercase tracking-widest opacity-20 ml-5"
-                        >
-                            Bound to Service
+                        <div class="flex items-center gap-1.5 text-foreground font-medium">
+                            <Server class="w-3.5 h-3.5 text-primary" />
+                            <span>Service: {route.value.service_id}</span>
                         </div>
                     {:else if route.value.upstream}
-                        <div class="flex items-center gap-2">
-                            <Database
-                                class="w-3.5 h-3.5 text-info opacity-60"
-                            />
-                            <span
-                                class="text-[10px] font-bold text-base-content/70 italic"
-                            >
-                                Inline Configuration
-                            </span>
-                        </div>
-                        <div
-                            class="text-[8px] font-black uppercase tracking-widest opacity-20 ml-5"
-                        >
-                            {route.value.upstream.type || "Roundrobin"}
+                        <div class="flex items-center gap-1.5 text-foreground font-medium">
+                            <Database class="w-3.5 h-3.5 text-emerald-400" />
+                            <span>Inline ({route.value.upstream.type || "Roundrobin"})</span>
                         </div>
                     {:else}
-                        <div class="flex items-center gap-2 opacity-20">
-                            <Database class="w-3.5 h-3.5" />
-                            <span
-                                class="text-[10px] font-black uppercase tracking-widest"
-                            >
-                                None
-                            </span>
-                        </div>
+                        <span class="text-muted-foreground text-xs italic">None</span>
                     {/if}
                 </div>
             </td>
-            <td class="py-4 px-6">
+
+            <td class="py-3.5 px-4">
                 <StatusBadge status={route.value.status ?? 1} />
             </td>
-            <td class="py-4 px-6">
-                <div
-                    class="flex justify-end gap-1 opacity-20 group-hover:opacity-100 transition-all"
-                >
-                    <a
-                        href="/routes/{route.value.id}"
-                        class="btn btn-square btn-ghost btn-xs hover:bg-base-200"
-                    >
-                        <Edit2 class="w-3.5 h-3.5" />
+
+            <td class="py-3.5 px-4">
+                <div class="flex items-center justify-end gap-1">
+                    <a href="/routes/{route.value.id}">
+                        <Button variant="ghost" size="icon" class="h-7 w-7" title="Edit Route">
+                            <Edit2 class="w-3.5 h-3.5 text-muted-foreground hover:text-foreground" />
+                        </Button>
                     </a>
-                    <button
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        class="h-7 w-7 hover:text-destructive hover:bg-destructive/10"
                         onclick={() => deleteRoute(route.value.id)}
-                        class="btn btn-square btn-ghost btn-xs hover:bg-error/10 hover:text-error"
+                        title="Delete Route"
                     >
                         <Trash2 class="w-3.5 h-3.5" />
-                    </button>
-                    <div class="dropdown dropdown-end">
-                        <div
-                            tabindex="0"
-                            role="button"
-                            class="btn btn-square btn-ghost btn-xs hover:bg-base-200"
-                        >
-                            <MoreVertical class="w-3.5 h-3.5" />
-                        </div>
-                        <ul
-                            tabindex="0"
-                            class="dropdown-content z-[2] menu p-2 shadow-2xl bg-base-100 rounded-xl w-48 border border-base-300 mt-2"
-                        >
-                            <li>
-                                <a
-                                    class="text-[10px] font-black uppercase tracking-widest py-2"
-                                    >View Metrics</a
-                                >
-                            </li>
-                            <li>
-                                <a
-                                    class="text-[10px] font-black uppercase tracking-widest py-2"
-                                    >Security Audit</a
-                                >
-                            </li>
-                        </ul>
-                    </div>
+                    </Button>
                 </div>
             </td>
         {/snippet}

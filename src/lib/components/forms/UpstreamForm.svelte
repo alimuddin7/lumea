@@ -1,11 +1,15 @@
 <script lang="ts">
     import { onMount } from "svelte";
     import { apiFetch } from "$lib/api/client";
-    import { Save, ArrowLeft, Plus, Trash2 } from "lucide-svelte";
+    import { Save, ArrowLeft, Plus, Trash2, Database, Loader2, Server } from "lucide-svelte";
     import { goto } from "$app/navigation";
+    import Card from "$lib/components/ui/Card.svelte";
+    import Input from "$lib/components/ui/Input.svelte";
+    import Button from "$lib/components/ui/Button.svelte";
+    import Badge from "$lib/components/ui/Badge.svelte";
 
     let { id } = $props();
-    let loading = $state(id !== "new");
+    let loading = $state(false);
     let saving = $state(false);
 
     let upstream = $state<any>({
@@ -26,11 +30,11 @@
 
     onMount(async () => {
         if (id !== "new") {
+            loading = true;
             try {
                 const data = await apiFetch(`upstreams/${id}`);
                 const val = data.value;
 
-                // DATA NORMALIZATION: Ensure nested properties exist for binding
                 if (!val.checks) val.checks = {};
                 if (!val.checks.active) {
                     val.checks.active = {
@@ -41,8 +45,7 @@
                     };
                 }
                 if (!val.nodes) val.nodes = [];
-                if (!val.timeout)
-                    val.timeout = { connect: 6, send: 6, read: 6 };
+                if (!val.timeout) val.timeout = { connect: 6, send: 6, read: 6 };
 
                 upstream = val;
             } catch (err) {
@@ -58,254 +61,180 @@
     }
 
     function removeNode(index: number) {
-        upstream.nodes = upstream.nodes.filter(
-            (_: any, i: number) => i !== index,
-        );
+        upstream.nodes = upstream.nodes.filter((_: any, i: number) => i !== index);
     }
 
     async function saveUpstream() {
+        if (!upstream.name.trim()) {
+            alert("Upstream name cannot be empty.");
+            return;
+        }
         saving = true;
         try {
             const method = id === "new" ? "POST" : "PUT";
             const path = id === "new" ? "upstreams" : `upstreams/${id}`;
             await apiFetch(path, {
                 method,
-                body: upstream,
+                body: JSON.stringify(upstream),
             });
             goto("/upstreams");
         } catch (err: any) {
-            alert("Failed to save: " + err.message);
+            alert("Failed to save upstream: " + err.message);
         } finally {
             saving = false;
         }
     }
 </script>
 
-<div class="space-y-6 max-w-5xl mx-auto pb-20">
+<div class="space-y-6 max-w-4xl mx-auto pb-20">
     <!-- Header -->
     <div class="flex items-center justify-between">
         <div class="flex items-center gap-3">
-            <a
-                href="/upstreams"
-                class="p-2 hover:bg-base-200 rounded-full transition-colors opacity-50"
-            >
-                <ArrowLeft class="w-4 h-4" />
+            <a href="/upstreams">
+                <Button variant="ghost" size="icon" class="h-9 w-9">
+                    <ArrowLeft class="w-4 h-4" />
+                </Button>
             </a>
-            <h1 class="text-2xl font-black tracking-tighter">
-                {id === "new" ? "Create Upstream" : "Edit Upstream"}
-            </h1>
+            <div>
+                <h1 class="text-xl font-bold tracking-tight text-foreground">
+                    {id === "new" ? "Create New Upstream" : `Edit Upstream: ${upstream.name || id}`}
+                </h1>
+                <p class="text-xs text-muted-foreground">
+                    Define target backend nodes, load balancing algorithm, and health checks.
+                </p>
+            </div>
         </div>
-        <button
+
+        <Button
             onclick={saveUpstream}
             disabled={saving || loading}
-            class="flex items-center gap-2 px-6 py-2 bg-primary hover:bg-primary/90 disabled:opacity-20 text-primary-content font-black rounded-xl transition-all shadow-lg shadow-primary/10 text-xs uppercase tracking-widest"
+            variant="default"
+            size="sm"
+            class="gap-1.5 shadow-sm"
         >
             {#if saving}
-                <div
-                    class="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"
-                ></div>
+                <Loader2 class="w-4 h-4 animate-spin" />
                 <span>Saving...</span>
             {:else}
                 <Save class="w-4 h-4" />
-                <span>Save Configuration</span>
+                <span>Save Upstream</span>
             {/if}
-        </button>
+        </Button>
     </div>
 
     {#if loading}
-        <div class="py-32 flex flex-col items-center justify-center opacity-20">
-            <div class="loading loading-spinner loading-lg"></div>
-            <p class="mt-4 text-[10px] font-black uppercase tracking-[0.2em]">
-                Synchronizing Infrastructure State
-            </p>
-        </div>
+        <Card class="p-12 text-center text-muted-foreground text-xs font-medium">
+            Loading upstream configuration...
+        </Card>
     {:else}
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
-            <div class="lg:col-span-2 space-y-8">
-                <!-- Basic Config -->
-                <section class="section-card">
-                    <h2 class="section-title">Basic Configuration</h2>
-                    <div class="grid grid-cols-2 gap-4">
-                        <div class="space-y-1">
-                            <label for="u-name" class="label-minimal"
-                                >Upstream Name</label
-                            >
-                            <input
-                                id="u-name"
-                                type="text"
-                                bind:value={upstream.name}
-                                placeholder="e.g. Production Cluster"
-                                class="input-minimal"
-                            />
-                        </div>
-                        <div class="space-y-1">
-                            <label for="u-type" class="label-minimal"
-                                >Balancing Algorithm</label
-                            >
-                            <select
-                                id="u-type"
-                                bind:value={upstream.type}
-                                class="input-minimal"
-                            >
-                                <option value="roundrobin">Round Robin</option>
-                                <option value="chash">C-Hash</option>
-                                <option value="least_conn"
-                                    >Least Connection</option
-                                >
-                                <option value="ewma">EWMA</option>
-                            </select>
-                        </div>
-                    </div>
-                </section>
+        <div class="space-y-6">
+            <!-- Identity & Strategy Card -->
+            <Card class="p-6 space-y-4">
+                <div class="flex items-center gap-2 pb-3 border-b border-border">
+                    <Database class="w-4 h-4 text-primary" />
+                    <h2 class="font-semibold text-sm text-foreground">
+                        Upstream Profile & Load Balancing Algorithm
+                    </h2>
+                </div>
 
-                <!-- Target Nodes -->
-                <section class="section-card">
-                    <div class="section-title">
-                        <span>Target Nodes</span>
-                        <button
-                            onclick={addNode}
-                            class="btn btn-ghost btn-xs h-7 px-3 text-[10px] font-black uppercase tracking-widest bg-primary/5 hover:bg-primary/10 text-primary border border-primary/20"
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="space-y-1.5">
+                        <label for="upstreamNameInput" class="text-xs font-semibold text-foreground">
+                            Upstream Name
+                        </label>
+                        <Input
+                            id="upstreamNameInput"
+                            type="text"
+                            bind:value={upstream.name}
+                            placeholder="e.g. user-service-cluster"
+                            required
+                            class="h-9 text-xs"
+                        />
+                    </div>
+
+                    <div class="space-y-1.5">
+                        <label for="upstreamAlgorithmSelect" class="text-xs font-semibold text-foreground">
+                            Load Balancing Algorithm
+                        </label>
+                        <select
+                            id="upstreamAlgorithmSelect"
+                            bind:value={upstream.type}
+                            class="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-xs shadow-sm focus:outline-none focus:ring-1 focus:ring-ring uppercase"
                         >
-                            <Plus class="w-3 h-3 mr-1" /> Add Node
-                        </button>
+                            <option value="roundrobin">Round Robin</option>
+                            <option value="chash">Consistent Hash (CHash)</option>
+                            <option value="ewma">Exponentially Weighted Moving Average (EWMA)</option>
+                            <option value="least_conn">Least Connections</option>
+                        </select>
                     </div>
-                    <div class="space-y-3">
-                        {#each upstream.nodes as node, i}
-                            <div
-                                class="flex items-end gap-3 p-4 bg-base-200/50 rounded-2xl border border-base-300/50 group"
-                            >
-                                <div class="flex-1 space-y-1">
-                                    <label for={"h-" + i} class="label-minimal"
-                                        >Host / IP</label
-                                    >
-                                    <input
-                                        id={"h-" + i}
-                                        type="text"
-                                        bind:value={node.host}
-                                        placeholder="e.g. 127.0.0.1"
-                                        class="input-minimal bg-base-100"
-                                    />
-                                </div>
-                                <div class="w-24 space-y-1">
-                                    <label for={"p-" + i} class="label-minimal"
-                                        >Port</label
-                                    >
-                                    <input
-                                        id={"p-" + i}
-                                        type="number"
-                                        bind:value={node.port}
-                                        class="input-minimal bg-base-100"
-                                    />
-                                </div>
-                                <div class="w-16 space-y-1">
-                                    <label for={"w-" + i} class="label-minimal"
-                                        >Weight</label
-                                    >
-                                    <input
-                                        id={"w-" + i}
-                                        type="number"
-                                        bind:value={node.weight}
-                                        class="input-minimal bg-base-100"
-                                    />
-                                </div>
-                                <button
+                </div>
+            </Card>
+
+            <!-- Target Backend Nodes Card -->
+            <Card class="p-6 space-y-4">
+                <div class="flex items-center justify-between pb-3 border-b border-border">
+                    <div class="flex items-center gap-2">
+                        <Server class="w-4 h-4 text-primary" />
+                        <h2 class="font-semibold text-sm text-foreground">
+                            Backend Target Nodes
+                        </h2>
+                    </div>
+                    <Button variant="outline" size="xs" onclick={addNode} class="gap-1">
+                        <Plus class="w-3.5 h-3.5" />
+                        <span>Add Target Node</span>
+                    </Button>
+                </div>
+
+                <div class="space-y-3">
+                    {#each upstream.nodes as node, i}
+                        <div class="grid grid-cols-12 gap-3 items-center p-3 rounded-lg border border-border bg-muted/20">
+                            <div class="col-span-6 space-y-1">
+                                <label for="nodeHostInput-{i}" class="text-[11px] font-medium text-muted-foreground">Host / IP</label>
+                                <Input
+                                    id="nodeHostInput-{i}"
+                                    type="text"
+                                    bind:value={node.host}
+                                    placeholder="127.0.0.1 or httpbin.org"
+                                    class="h-8 text-xs font-mono"
+                                />
+                            </div>
+
+                            <div class="col-span-3 space-y-1">
+                                <label for="nodePortInput-{i}" class="text-[11px] font-medium text-muted-foreground">Port</label>
+                                <Input
+                                    id="nodePortInput-{i}"
+                                    type="number"
+                                    bind:value={node.port}
+                                    placeholder="80"
+                                    class="h-8 text-xs font-mono"
+                                />
+                            </div>
+
+                            <div class="col-span-2 space-y-1">
+                                <label for="nodeWeightInput-{i}" class="text-[11px] font-medium text-muted-foreground">Weight</label>
+                                <Input
+                                    id="nodeWeightInput-{i}"
+                                    type="number"
+                                    bind:value={node.weight}
+                                    placeholder="1"
+                                    class="h-8 text-xs font-mono"
+                                />
+                            </div>
+
+                            <div class="col-span-1 flex justify-end pt-5">
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    class="h-8 w-8 hover:text-destructive hover:bg-destructive/10"
                                     onclick={() => removeNode(i)}
-                                    class="p-2.5 text-base-content/20 hover:text-error transition-all hover:bg-error/5 rounded-xl"
                                 >
-                                    <Trash2 class="w-4 h-4" />
-                                </button>
-                            </div>
-                        {/each}
-                    </div>
-                </section>
-            </div>
-
-            <!-- Sidebar -->
-            <div class="space-y-6">
-                <section class="section-card">
-                    <h2 class="section-title">Health Checks</h2>
-                    <div class="space-y-4">
-                        <div class="space-y-1">
-                            <label for="hc-path" class="label-minimal"
-                                >HTTP Path</label
-                            >
-                            <input
-                                id="hc-path"
-                                type="text"
-                                bind:value={upstream.checks.active.http_path}
-                                class="input-minimal bg-base-200/50"
-                            />
-                        </div>
-                        <div class="grid grid-cols-2 gap-3">
-                            <div class="space-y-1">
-                                <label for="hc-int" class="label-minimal"
-                                    >Interval (s)</label
-                                >
-                                <input
-                                    id="hc-int"
-                                    type="number"
-                                    bind:value={
-                                        upstream.checks.active.healthy.interval
-                                    }
-                                    class="input-minimal bg-base-200/50"
-                                />
-                            </div>
-                            <div class="space-y-1">
-                                <label for="hc-succ" class="label-minimal"
-                                    >Successes</label
-                                >
-                                <input
-                                    id="hc-succ"
-                                    type="number"
-                                    bind:value={
-                                        upstream.checks.active.healthy.successes
-                                    }
-                                    class="input-minimal bg-base-200/50"
-                                />
+                                    <Trash2 class="w-3.5 h-3.5" />
+                                </Button>
                             </div>
                         </div>
-                    </div>
-                </section>
-
-                <section class="section-card">
-                    <h2 class="section-title">Connectivity</h2>
-                    <div class="grid grid-cols-3 gap-2">
-                        <div class="space-y-1">
-                            <label for="t-conn" class="label-minimal text-[8px]"
-                                >Connect</label
-                            >
-                            <input
-                                id="t-conn"
-                                type="number"
-                                bind:value={upstream.timeout.connect}
-                                class="input-minimal bg-base-200/50 text-xs px-2 py-1.5 font-bold"
-                            />
-                        </div>
-                        <div class="space-y-1">
-                            <label for="t-send" class="label-minimal text-[8px]"
-                                >Send</label
-                            >
-                            <input
-                                id="t-send"
-                                type="number"
-                                bind:value={upstream.timeout.send}
-                                class="input-minimal bg-base-200/50 text-xs px-2 py-1.5 font-bold"
-                            />
-                        </div>
-                        <div class="space-y-1">
-                            <label for="t-read" class="label-minimal text-[8px]"
-                                >Read</label
-                            >
-                            <input
-                                id="t-read"
-                                type="number"
-                                bind:value={upstream.timeout.read}
-                                class="input-minimal bg-base-200/50 text-xs px-2 py-1.5 font-bold"
-                            />
-                        </div>
-                    </div>
-                </section>
-            </div>
+                    {/each}
+                </div>
+            </Card>
         </div>
     {/if}
 </div>

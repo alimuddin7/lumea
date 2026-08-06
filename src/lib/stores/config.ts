@@ -7,8 +7,8 @@ export interface Config {
 }
 
 const DEFAULT_CONFIG: Config = {
-    baseUrl: 'http://12.12.12.5:19180/apisix/admin',
-    apiKey: 'iBIESRYmMCCajlvVSyepbWNEMvdotMEP'
+    baseUrl: '',
+    apiKey: ''
 };
 
 const storedConfig = browser ? localStorage.getItem('apisix_config') : null;
